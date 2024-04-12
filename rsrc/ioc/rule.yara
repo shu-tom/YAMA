@@ -5824,7 +5824,6 @@ rule Msfpayloads_msf {
 rule Msfpayloads_msf_2 {
    meta:
       description = "Metasploit Payloads - file msf.asp"
-      license = "Detection Rule License 1.1 https://github.com/Neo23x0/signature-base/blob/master/LICENSE"
       author = "Florian Roth (Nextron Systems)"
       reference = "Internal Research"
       date = "2017-02-09"
