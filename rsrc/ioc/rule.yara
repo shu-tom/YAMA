@@ -2,7 +2,6 @@ rule APT_CobaltStrike_Beacon_Indicator {
    meta:
       description = "Detects CobaltStrike beacons"
       author = "JPCERT"
-      date = "2018-11-09"
       id = "8508c7a0-0131-59b1-b537-a6d1c6cb2b35"
    strings:
       $v1 = { 73 70 72 6E 67 00 }
