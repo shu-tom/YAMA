@@ -31,12 +31,12 @@ jobs:
       matrix:
         config:
           - {
-            name: "Build YAMA Scanner",
-            pe: "YAMA.exe",
+            name: "Build YAMA Scanner dll",
+            pe: "YAMA.dll",
           }
     steps:
     - name: Check out repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 1
         submodules: 'recursive'
@@ -52,7 +52,7 @@ jobs:
     
     - name: Cache LLVM and Clang
       id: cache-llvm
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           C:/Program Files/LLVM
@@ -88,7 +88,7 @@ jobs:
     #   shell: powershell
 
     - name: Cache .ccache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: cache-ccache
       with:
         path: |
