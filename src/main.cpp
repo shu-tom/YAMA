@@ -25,7 +25,7 @@
 
 const char* version = "1.0";
 
-extern "C" YAMA_API int MemoryScan() {
+extern "C" YAMA_API int MemoryScan(const char* ruleString) {
     int verbosity = 0; // warn レベルに相当
     std::string strOutputPath = "./";
     bool isJson = false;
@@ -51,9 +51,6 @@ extern "C" YAMA_API int MemoryScan() {
     strOutputPath = std::string(yama::WideCharToUtf8(lpwcAbsPath));
     LOGTRACE("Output path {}", strOutputPath);
     
-    // 以下、固定動作処理
-    // (イベントログのインストール／アンインストール処理は削除)
-    
     // Set scanner context
     yama::ScannerContext* context = new yama::ScannerContext();
 
@@ -69,10 +66,14 @@ extern "C" YAMA_API int MemoryScan() {
 
     // Initialize YamaScanner
     yama::YamaScanner *scanner = new yama::YamaScanner(&vPids);
-    scanner->InitYaraManager(yama::LoadYaraRuleFromResource());
-    
-    // Do memory scan
-    if (context->canRecordEventlog) { EventWriteProcessStarted(); }
+    {
+        yama::YaraManager manager;
+        if (!manager.YrAddRuleFromString(ruleString)) {
+            LOGERROR("Failed to add rule from string.");
+            return 1;
+        }
+    }
+    // YamaScannerの実行
     scanner->ScanPidList();
 
     // Show detected processes count.
