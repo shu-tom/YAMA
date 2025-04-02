@@ -56,7 +56,8 @@ set(rsrc
 
 # Add Yama to build targets
 # =====================================================
-add_executable(yama ${srcs} ${hdrs} ${rsrc})
+add_library(yama SHARED ${srcs} ${hdrs} ${rsrc})
+target_compile_definitions(yama PRIVATE YAMA_EXPORTS)
 
 # Add libyara to build targets
 # =====================================================

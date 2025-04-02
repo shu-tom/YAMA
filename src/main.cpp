@@ -15,9 +15,17 @@
 #include "yaramanager.hpp"
 #include "yamascanner.hpp"
 
+#ifndef YAMA_API
+#ifdef _WIN32
+	#define YAMA_API __declspec(dllexport)
+#else
+	#define YAMA_API
+#endif
+#endif
+
 const char* version = "1.0";
 
-extern "C" __declspec(dllexport) int MemoryScan() {
+extern "C" YAMA_API int MemoryScan() {
     int verbosity = 0; // warn レベルに相当
     std::string strOutputPath = "./";
     bool isJson = false;
