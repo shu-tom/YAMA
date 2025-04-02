@@ -7,8 +7,8 @@
 #define VER_FILESUBTYPE             VFT2_UNKNOWN
 #define VER_FILEOS                  VOS_NT_WINDOWS32
 #define VER_FILEDESCRIPTION_STR     "Yama: Yet Another Memory Analyzer for malware detection"
-#define VER_INTERNALNAME_STR        "Yama.exe"
-#define VER_ORIGINALFILENAME_STR    "Yama.exe"
+#define VER_INTERNALNAME_STR        "Yama.dll"
+#define VER_ORIGINALFILENAME_STR    "Yama.dll"
 #define VER_LEGALCOPYRIGHT_STR      ""
 #define VER_PRODUCTNAME_STR         "Yama"
 #define VER_FILEVERSION             YAMA_MAJOR_VERSION,YAMA_MINOR_VERSION,YAMA_MICRO_VERSION,YAMA_PATCH_VERSION
