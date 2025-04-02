@@ -17,12 +17,6 @@
 
 const char* version = "1.0";
 
-const char* banner = " __  _____   __  ______\n" 
-                     " \\ \\/ / _ | /  |/  / _ |\n"
-                     "  \\  / __ |/ /|_/ / __ |\n"
-                     "  /_/_/ |_/_/  /_/_/ |_|\n"
-                     "Yet Another Memory Analyzer for malware detection.\n";
-
 extern "C" __declspec(dllexport) int MemoryScan() {
     // 固定設定値
     int verbosity = 0; // warn レベルに相当
