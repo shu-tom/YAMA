@@ -18,14 +18,10 @@
 const char* version = "1.0";
 
 extern "C" __declspec(dllexport) int MemoryScan() {
-    // 固定設定値
     int verbosity = 0; // warn レベルに相当
     std::string strOutputPath = "./";
     bool isJson = false;
     
-    // 引数パーサー削除
-    // ...existing code removed: argc, argv の処理、argparse の初期化など...
-
     // init logger settings
     spdlog::set_pattern("%^%-9l%$: %v");  // ...existing code...
   
@@ -120,11 +116,9 @@ extern "C" __declspec(dllexport) int MemoryScan() {
 }
 
 #ifdef _WIN32
-// DLLのエントリポイント
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved){
     switch (ul_reason_for_call){
     case DLL_PROCESS_ATTACH:
-        // 初期化処理があれば記述
         break;
     case DLL_THREAD_ATTACH:
     case DLL_THREAD_DETACH:
