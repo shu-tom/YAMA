@@ -86,6 +86,10 @@ void Peb::SetProcessParam() {
     }
 }
 
+bool Peb::IsValid() const {
+    return this->pPEB != nullptr;
+}
+
 std::vector<uint64_t> Peb::GetHeapAddressList() {
     std::vector<uint64_t> HeapAddressList;
     // get heap address from peb
@@ -120,6 +124,10 @@ Process::Process(DWORD pid) {
 
     // PEB
     this->pPeb = new Peb(hProcess);
+    if (!this->pPeb->IsValid()) {
+        LOGERROR("Invalid PEB. Process creation aborted.");
+        return;
+    }
 
     // Set Process Name
     this->wcProcessName = (wchar_t*)calloc(MAX_PATH, sizeof(wchar_t));
