@@ -25,7 +25,7 @@
 
 const char* version = "1.0";
 
-extern "C" YAMA_API int MemoryScan(const char* ruleString) {
+extern "C" YAMA_API int MemoryScan(const char* ruleString, char** result) {
     int verbosity = 0; // warn レベルに相当
     std::string strOutputPath = "./";
     bool isJson = false;
@@ -97,23 +97,9 @@ extern "C" YAMA_API int MemoryScan(const char* ruleString) {
         strReport = reporter->GenerateTextReport();
     }
 
-    // Write result into console
-    std::cout << *strReport << std::endl;  
-
-    // Write result into output directory
-    std::string strReportPath = strOutputPath + "\\" +
-                                yama::WideCharToUtf8(context->lpwHostName) + "_" +
-                                std::string(context->lpcFilenameTime) + "_yama." +
-                                (isJson ? "json" : "txt");
-    LOGINFO("Report file path: {}", strReportPath)
-
-    std::ofstream ioOutputFile(strReportPath.c_str());
-    if (ioOutputFile.is_open()){
-        ioOutputFile << *strReport << std::endl;
-        ioOutputFile.close();
-        LOGINFO("File written successfully: {}", strReportPath);
-    } else {
-        LOGWARN("Failed to open file: {}", strReportPath);
+    // ★変更: 結果をコンソール出力やファイル出力ではなく、呼び出し元へ返却 ★
+    if(result != nullptr) {
+        *result = _strdup(strReport->c_str());
     }
 
     if (context->canRecordEventlog) { 
