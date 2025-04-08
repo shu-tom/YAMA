@@ -52,7 +52,7 @@ Peb::Peb(HANDLE hProcess) {
     if (!ReadProcessMemory(hProcess, pPBI->PebBaseAddress, this->pPEB, sizeof(nt64::PEB), NULL)) {
         DWORD err = GetLastError();
         this->pPEB = nullptr;
-        LOGERROR("Failed to get address of PEB. error_code: %lu", err);
+        LOGTRACE("Failed to get address of PEB. error_code: {}", err);
         return;
     }
 
@@ -84,10 +84,6 @@ void Peb::SetProcessParam() {
         ReadProcessMemory(this->hProcess, reinterpret_cast<void*>(ProcessParam->CommandLine.Buffer),
                           this->wcCmdLine, ProcessParam->CommandLine.u.Length, NULL);
     }
-}
-
-bool Peb::IsValid() const {
-    return this->pPEB != nullptr;
 }
 
 std::vector<uint64_t> Peb::GetHeapAddressList() {
@@ -124,8 +120,8 @@ Process::Process(DWORD pid) {
 
     // PEB
     this->pPeb = new Peb(hProcess);
-    if (!this->pPeb->IsValid()) {
-        LOGERROR("Invalid PEB. Process creation aborted.");
+    if (this->pPeb->GetPEB() == nullptr) {
+        LOGERROR("Failed to read PEB for process {}. Skip scanning.", this->pid);
         return;
     }
 
