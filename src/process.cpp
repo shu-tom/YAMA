@@ -121,7 +121,7 @@ Process::Process(DWORD pid) {
     // PEB
     this->pPeb = new Peb(hProcess);
     if (this->pPeb->GetPEB() == nullptr) {
-        LOGERROR("Failed to read PEB for process {}. Skip scanning.", this->pid);
+        LOGTRACE("Failed to read PEB for process {}. Skip scanning.", this->pid);
         return;
     }
 
