@@ -97,9 +97,10 @@ extern "C" YAMA_API int MemoryScan(const char* ruleString, char** result) {
         strReport = reporter->GenerateTextReport();
     }
 
-    // ★変更: 結果をコンソール出力やファイル出力ではなく、呼び出し元へ返却 ★
-    if(result != nullptr) {
-        *result = _strdup(strReport->c_str());
+    if (result != nullptr) {
+        size_t len = strlen(strReport->c_str()) + 1;
+        *result = (char*)CoTaskMemAlloc(len);
+        strcpy_s(*result, len, strReport->c_str());
     }
 
     if (context->canRecordEventlog) { 
