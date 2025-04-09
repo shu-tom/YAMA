@@ -25,7 +25,7 @@
 
 const char* version = "1.0";
 
-extern "C" YAMA_API int MemoryScan(const char* ruleString, char** result) {
+extern "C" YAMA_API int __cdecl MemoryScan(const char* ruleString, char** result) {
     int verbosity = 0; // warn レベルに相当
     std::string strOutputPath = "./";
     bool isJson = false;
@@ -41,6 +41,7 @@ extern "C" YAMA_API int MemoryScan(const char* ruleString, char** result) {
     DWORD dwResult = GetFullPathNameW(yama::StdStringToWideChar(strOutputPath), MAX_PATH, lpwcAbsPath, NULL);
     if (dwResult == 0) {
         LOGERROR("Failed to expand relative path. Set valid path.")
+        delete[] lpwcAbsPath;
         return 1;
     }
     if (!yama::PathExistsW(lpwcAbsPath)) {
@@ -49,6 +50,7 @@ extern "C" YAMA_API int MemoryScan(const char* ruleString, char** result) {
         GetCurrentDirectoryW(MAX_PATH, lpwcAbsPath);
     }
     strOutputPath = std::string(yama::WideCharToUtf8(lpwcAbsPath));
+    delete[] lpwcAbsPath;
     LOGTRACE("Output path {}", strOutputPath);
     
     // Set scanner context
