@@ -27,7 +27,7 @@
 
 const char* version = "1.0";
 
-extern "C" YAMA_API int __cdecl MemoryScan(const char* ruleString, BSTR* result) {
+extern "C" YAMA_API BSTR __cdecl MemoryScan(const char* ruleString) {
     int verbosity = 0; // warn レベルに相当
     std::string strOutputPath = "./";
     bool isJson = false;
@@ -44,7 +44,7 @@ extern "C" YAMA_API int __cdecl MemoryScan(const char* ruleString, BSTR* result)
     if (dwResult == 0) {
         LOGERROR("Failed to expand relative path. Set valid path.")
         delete[] lpwcAbsPath;
-        return 1;
+        return NULL;
     }
     if (!yama::PathExistsW(lpwcAbsPath)) {
         LOGWARN("Output path does not exists:  {}", yama::WideCharToUtf8(lpwcAbsPath));
@@ -74,7 +74,7 @@ extern "C" YAMA_API int __cdecl MemoryScan(const char* ruleString, BSTR* result)
         yama::YaraManager manager;
         if (!manager.YrAddRuleFromString(ruleString)) {
             LOGERROR("Failed to add rule from string.");
-            return 1;
+            return NULL;
         }
     }
     // YamaScannerの実行
@@ -94,27 +94,19 @@ extern "C" YAMA_API int __cdecl MemoryScan(const char* ruleString, BSTR* result)
 
     // Generate report
     yama::Reporter *reporter = new yama::Reporter(context, scanner->suspiciousProcessList);
-    {
-        std::string* strReport = nullptr;
-        if (isJson) {
-            strReport = reporter->GenerateJsonReport();
-        } else {
-            strReport = reporter->GenerateTextReport();
-        }
-        // BSTR に変換して返却
-        if (result != nullptr) {
-            // 文字列変換（簡易な実装例）
-            std::wstring wReport(strReport->begin(), strReport->end());
-            *result = SysAllocString(wReport.c_str());
-        }
+    std::string* strReport = nullptr;
+    if (isJson) {
+        strReport = reporter->GenerateJsonReport();
+    } else {
+        strReport = reporter->GenerateTextReport();
     }
-
+    // BSTR に変換して返却
+    std::wstring wReport(strReport->begin(), strReport->end());
     if (context->canRecordEventlog) { 
         EventWriteProcessStopped(); 
         EventUnregisterYAMA();
     }
-
-    return 0;
+    return SysAllocString(wReport.c_str());
 }
 
 #ifdef _WIN32
