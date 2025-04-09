@@ -1,6 +1,8 @@
 #define NOMINMAX
 #include <argparse/argparse.hpp>
 #include <windows.h>
+#include <comutil.h> // 追加ヘッダ
+#pragma comment(lib, "comsuppw.lib")
 
 #include "../rsrc/resources.h"
 #include "common.h"
@@ -25,13 +27,13 @@
 
 const char* version = "1.0";
 
-extern "C" YAMA_API int __cdecl MemoryScan(const char* ruleString, char** result) {
+extern "C" YAMA_API int __cdecl MemoryScan(const char* ruleString, BSTR* result) {
     int verbosity = 0; // warn レベルに相当
     std::string strOutputPath = "./";
     bool isJson = false;
     
     // init logger settings
-    spdlog::set_pattern("%^%-9l%$: %v");  // ...existing code...
+    spdlog::set_pattern("%^%-9l%$: %v");
   
     // Set log verbosity level（引数による変更は行わない）
     spdlog::set_level(spdlog::level::warn);
@@ -92,17 +94,19 @@ extern "C" YAMA_API int __cdecl MemoryScan(const char* ruleString, char** result
 
     // Generate report
     yama::Reporter *reporter = new yama::Reporter(context, scanner->suspiciousProcessList);
-    std::string* strReport = nullptr;
-    if (isJson) {
-        strReport = reporter->GenerateJsonReport();
-    } else {
-        strReport = reporter->GenerateTextReport();
-    }
-
-    if (result != nullptr) {
-        size_t len = strlen(strReport->c_str()) + 1;
-        *result = (char*)CoTaskMemAlloc(len);
-        strcpy_s(*result, len, strReport->c_str());
+    {
+        std::string* strReport = nullptr;
+        if (isJson) {
+            strReport = reporter->GenerateJsonReport();
+        } else {
+            strReport = reporter->GenerateTextReport();
+        }
+        // BSTR に変換して返却
+        if (result != nullptr) {
+            // 文字列変換（簡易な実装例）
+            std::wstring wReport(strReport->begin(), strReport->end());
+            *result = SysAllocString(wReport.c_str());
+        }
     }
 
     if (context->canRecordEventlog) { 
