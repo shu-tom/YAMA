@@ -27,6 +27,7 @@ set(hdrs
     src/etw_provider.h
     src/scanner_context.hpp
     src/yamascanner.hpp
+    src/utils.hpp
 )
 
 set(srcs
@@ -46,6 +47,7 @@ set(srcs
     src/etw_provider.cpp
     src/scanner_context.cpp
     src/yamascanner.cpp
+    src/utils.cpp
 )
 
 set(rsrc

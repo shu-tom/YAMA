@@ -16,6 +16,7 @@
 #include "thread.hpp"
 #include "yaramanager.hpp"
 #include "yamascanner.hpp"
+#include "utils.hpp"
 
 #ifndef YAMA_API
 #ifdef _WIN32
@@ -29,7 +30,7 @@ const char* version = "1.0";
 
 extern "C" YAMA_API BSTR __cdecl MemoryScan(const char* ruleString) {
     try {
-        int verbosity = 0; // warnレベル
+        int verbosity = 0;
         std::string strOutputPath = "./";
         bool isJson = false;
 
@@ -46,8 +47,7 @@ extern "C" YAMA_API BSTR __cdecl MemoryScan(const char* ruleString) {
             LOGWARN("Output path does not exist: {}", yama::WideCharToUtf8(lpwcAbsPath));
             GetCurrentDirectoryW(MAX_PATH, lpwcAbsPath);
         }
-        strOutputPath = std::string(yama::WideCharToUtf8(lpwcAbsPath));
-        LOGTRACE("Output path {}", strOutputPath);
+        strOutputPath = yama::WideCharToUtf8(lpwcAbsPath);
 
         auto context = std::make_unique<yama::ScannerContext>();
 
@@ -60,13 +60,13 @@ extern "C" YAMA_API BSTR __cdecl MemoryScan(const char* ruleString) {
         LOGINFO("Yama will scan {} process(es).", vPids.size());
 
         auto scanner = std::make_unique<yama::YamaScanner>(&vPids);
-        {
-            yama::YaraManager manager;
-            if (!manager.YrAddRuleFromString(ruleString)) {
-                LOGERROR("Failed to add rule from string.");
-                return nullptr;
-            }
+        
+        yama::YaraManager manager;
+        if (!manager.YrAddRuleFromString(ruleString)) {
+            LOGERROR("Failed to add rule from string.");
+            return nullptr;
         }
+
         scanner->ScanPidList();
 
         LOGINFO("Suspicious Processes Count: {}", scanner->suspiciousProcessList->size());
@@ -79,15 +79,25 @@ extern "C" YAMA_API BSTR __cdecl MemoryScan(const char* ruleString) {
             }
         }
 
-        auto reporter = std::make_unique<yama::Reporter>(context.get(), scanner->suspiciousProcessList);
         std::unique_ptr<std::string> strReport;
-        if (isJson) {
-            strReport.reset(reporter->GenerateJsonReport());
+        auto reporter = std::make_unique<yama::Reporter>(context.get(), scanner->suspiciousProcessList);
+        if (scanner->suspiciousProcessList->empty()) {
+            strReport = std::make_unique<std::string>("No suspicious processes detected.");
         } else {
-            strReport.reset(reporter->GenerateTextReport());
+            if (isJson) {
+                strReport.reset(reporter->GenerateJsonReport());
+            } else {
+                strReport.reset(reporter->GenerateTextReport());
+            }
+
+            if (!strReport) {
+                LOGERROR("Failed to generate report.");
+                return nullptr;
+            }
         }
 
-        std::wstring wReport(strReport->begin(), strReport->end());
+        std::wstring wReport = yama::Utf8ToWideChar(*strReport);
+        
         if (context->canRecordEventlog) { 
             EventWriteProcessStopped(); 
             EventUnregisterYAMA();
