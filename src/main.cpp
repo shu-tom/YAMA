@@ -28,7 +28,7 @@
 
 const char* version = "1.0";
 
-extern "C" YAMA_API BSTR __cdecl MemoryScan(const char* ruleString) {
+extern "C" YAMA_API BSTR __stdcall MemoryScan(const char* ruleString) {
     try {
         int verbosity = 0;
         std::string strOutputPath = "./";
