@@ -29,6 +29,11 @@
 const char* version = "1.0";
 
 extern "C" YAMA_API BSTR __stdcall MemoryScan(const char* ruleString) {
+    if (ruleString == nullptr) {
+        LOGERROR("MemoryScan received a null ruleString.");
+        return nullptr;
+    }
+    
     try {
         int verbosity = 0;
         std::string strOutputPath = "./";
@@ -62,7 +67,7 @@ extern "C" YAMA_API BSTR __stdcall MemoryScan(const char* ruleString) {
         auto scanner = std::make_unique<yama::YamaScanner>(&vPids);
         
         yama::YaraManager manager;
-        if (!manager.YrAddRuleFromString(ruleString)) {
+        if (!manager.YrAddRuleFromString(rule.c_str())) {
             LOGERROR("Failed to add rule from string.");
             return nullptr;
         }
