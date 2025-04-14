@@ -28,11 +28,13 @@
 
 const char* version = "1.0";
 
-extern "C" YAMA_API BSTR __stdcall MemoryScan(const char* ruleString) {
+extern "C" YAMA_API BSTR __stdcall MemoryScan(BSTR ruleString) {
     if (ruleString == nullptr) {
         LOGERROR("MemoryScan received a null ruleString.");
         return nullptr;
     }
+    std::wstring ruleW(ruleString, SysStringLen(ruleString));
+    std::string rule = yama::WideCharToUtf8(ruleW);
     
     try {
         int verbosity = 0;
