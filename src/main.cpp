@@ -40,7 +40,7 @@ extern "C" YAMA_API BSTR __stdcall MemoryScan(const char* ruleString) {
         DWORD dwResult = GetFullPathNameW(yama::StdStringToWideChar(strOutputPath), MAX_PATH, lpwcAbsPath, NULL);
         if (dwResult == 0) {
             LOGERROR("Failed to expand relative path. Set valid path.");
-            return nullptr;
+            //return nullptr;
         }
         if (!yama::PathExistsW(lpwcAbsPath)) {
             LOGWARN("Output path does not exist: {}", yama::WideCharToUtf8(lpwcAbsPath));
@@ -63,7 +63,7 @@ extern "C" YAMA_API BSTR __stdcall MemoryScan(const char* ruleString) {
         yama::YaraManager manager;
         if (!manager.YrAddRuleFromString(ruleString)) {
             LOGERROR("Failed to add rule from string.");
-            return nullptr;
+            //return nullptr;
         }
 
         scanner->ScanPidList();
@@ -91,7 +91,7 @@ extern "C" YAMA_API BSTR __stdcall MemoryScan(const char* ruleString) {
 
             if (!strReport) {
                 LOGERROR("Failed to generate report.");
-                return nullptr;
+                //return nullptr;
             }
         }
 
@@ -109,11 +109,11 @@ extern "C" YAMA_API BSTR __stdcall MemoryScan(const char* ruleString) {
     }
     catch (const std::exception& ex) {
         LOGERROR("Exception caught: {}", ex.what());
-        return nullptr;
+        //return nullptr;
     }
     catch (...) {
         LOGERROR("Unknown exception caught.");
-        return nullptr;
+        //return nullptr;
     }
 }
 
