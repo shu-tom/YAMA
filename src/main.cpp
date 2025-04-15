@@ -95,17 +95,17 @@ extern "C" YAMA_API BSTR __stdcall MemoryScan(const char* ruleString) {
             }
         }
 
-        LPCWSTR pStr = *strReport.c_str()
-        int iByte = MultiByteToWideChar(CP_ACP, 0, pStr -1, NULL, 0, NULL, NULL);
-        char* pszReturn = (char*)::CoTaskMemAlloc(iByte);
-        WideCharToMultiByte(CP_ACP, 0, pStr, -1, pszReturn, iByte, NULL, NULL);
+        int iWideLen = MultiByteToWideChar(CP_ACP, 0, strReport->c_str(), -1, NULL, 0);
+        std::vector<wchar_t> wideStr(iWideLen);
+        MultiByteToWideChar(CP_ACP, 0, strReport->c_str(), -1, wideStr.data(), iWideLen);
+        BSTR bstrReport = SysAllocString(wideStr.data());
         
         if (context->canRecordEventlog) { 
             EventWriteProcessStopped(); 
             EventUnregisterYAMA();
         }
 
-        return pszReturn;
+        return bstrReport;
     }
     catch (const std::exception& ex) {
         LOGERROR("Exception caught: {}", ex.what());
