@@ -27,7 +27,7 @@
 
 const char* version = "1.0";
 
-extern "C" YAMA_API string __stdcall MemoryScan(const char* ruleString) {
+extern "C" YAMA_API int __stdcall MemoryScan(const char* ruleString, const char** result) {
     try {
         int verbosity = 0;
         std::string strOutputPath = "./";
@@ -96,16 +96,16 @@ extern "C" YAMA_API string __stdcall MemoryScan(const char* ruleString) {
         }
 
         int iWideLen = MultiByteToWideChar(CP_ACP, 0, strReport->c_str(), -1, NULL, 0);
-        std::vector<wchar_t> wideStr(iWideLen);
-        MultiByteToWideChar(CP_ACP, 0, strReport->c_str(), -1, wideStr.data(), iWideLen);
-        //BSTR bstrReport = SysAllocString(wideStr.data());
-        
+        char* pszReturn = (char*)::CoTaskMemAlloc(iWideLen);
+        MultiByteToWideChar(CP_ACP, 0, strReport->c_str(), -1, pszReturn, iWideLen);
+        *result = (const char**)&pszReturn;
+
         if (context->canRecordEventlog) { 
             EventWriteProcessStopped(); 
             EventUnregisterYAMA();
         }
 
-        return wideStr.data();
+        return 1;
     }
     catch (const std::exception& ex) {
         LOGERROR("Exception caught: {}", ex.what());
