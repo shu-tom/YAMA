@@ -16,7 +16,6 @@
 #include "thread.hpp"
 #include "yaramanager.hpp"
 #include "yamascanner.hpp"
-#include "utils.hpp"
 
 #ifndef YAMA_API
 #ifdef _WIN32
@@ -28,14 +27,7 @@
 
 const char* version = "1.0";
 
-extern "C" YAMA_API BSTR __stdcall MemoryScan(BSTR ruleString) {
-    if (ruleString == nullptr) {
-        LOGERROR("MemoryScan received a null ruleString.");
-        return nullptr;
-    }
-    std::wstring ruleW(ruleString, SysStringLen(ruleString));
-    std::string rule = yama::WideCharToUtf8(ruleW);
-    
+extern "C" YAMA_API BSTR __stdcall MemoryScan(const char* ruleString) {
     try {
         int verbosity = 0;
         std::string strOutputPath = "./";
@@ -69,7 +61,7 @@ extern "C" YAMA_API BSTR __stdcall MemoryScan(BSTR ruleString) {
         auto scanner = std::make_unique<yama::YamaScanner>(&vPids);
         
         yama::YaraManager manager;
-        if (!manager.YrAddRuleFromString(rule.c_str())) {
+        if (!manager.YrAddRuleFromString(ruleString)) {
             LOGERROR("Failed to add rule from string.");
             return nullptr;
         }
@@ -103,14 +95,17 @@ extern "C" YAMA_API BSTR __stdcall MemoryScan(BSTR ruleString) {
             }
         }
 
-        std::wstring wReport = yama::Utf8ToWideChar(*strReport);
+        LPCWSTR pStr = *strReport.c_str()
+        int iByte = MultiByteToWideChar(CP_ACP, 0, pStr -1, NULL, 0, NULL, NULL);
+        char* pszReturn = (char*)::CoTaskMemAlloc(iByte);
+        WideCharToMultiByte(CP_ACP, 0, pStr, -1, pszReturn, iByte, NULL, NULL);
         
         if (context->canRecordEventlog) { 
             EventWriteProcessStopped(); 
             EventUnregisterYAMA();
         }
 
-        return SysAllocString(wReport.c_str());
+        return pszReturn;
     }
     catch (const std::exception& ex) {
         LOGERROR("Exception caught: {}", ex.what());
