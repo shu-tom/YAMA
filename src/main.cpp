@@ -95,10 +95,11 @@ extern "C" YAMA_API int __stdcall MemoryScan(const char* ruleString, const char*
             }
         }
 
-        int iWideLen = MultiByteToWideChar(CP_ACP, 0, strReport->c_str(), -1, NULL, 0);
-        char* pszReturn = (char*)::CoTaskMemAlloc(iWideLen);
-        MultiByteToWideChar(CP_ACP, 0, strReport->c_str(), -1, pszReturn, iWideLen);
-        *result = (const char**)&pszReturn;
+        // マルチバイト文字列として確保
+        size_t len = strReport->size() + 1;
+        char* pszReturn = (char*)::CoTaskMemAlloc(len);
+        memcpy(pszReturn, strReport->c_str(), len);
+        *result = pszReturn;
 
         if (context->canRecordEventlog) { 
             EventWriteProcessStopped(); 
