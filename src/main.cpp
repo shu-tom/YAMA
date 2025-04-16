@@ -29,6 +29,9 @@ const char* version = "1.0";
 
 extern "C" YAMA_API int __stdcall MemoryScan(const char* ruleString, const char** result) {
     try {
+        // デフォルト値を設定
+        *result = nullptr; // 最初に初期化して安全に
+
         int verbosity = 0;
         std::string strOutputPath = "./";
         bool isJson = false;
@@ -63,10 +66,22 @@ extern "C" YAMA_API int __stdcall MemoryScan(const char* ruleString, const char*
         yama::YaraManager manager;
         if (!manager.YrAddRuleFromString(ruleString)) {
             LOGERROR("Failed to add rule from string.");
-            //return nullptr;
+            char* pszReturn = (char*)::CoTaskMemAlloc(256);
+            strcpy(pszReturn, "Error: Failed to add YARA rule");
+            *result = pszReturn;
+            return 0;
         }
 
-        scanner->ScanPidList();
+        try {
+            scanner->ScanPidList();
+        }
+        catch (const std::exception& ex) {
+            LOGERROR("Exception during scanning: {}", ex.what());
+            char* pszReturn = (char*)::CoTaskMemAlloc(256);
+            sprintf(pszReturn, "Error during scanning: %s", ex.what());
+            *result = pszReturn;
+            return 0;
+        }
 
         LOGINFO("Suspicious Processes Count: {}", scanner->suspiciousProcessList->size());
 
