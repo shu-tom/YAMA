@@ -52,8 +52,12 @@ int YaraManager::YrScanCallback(YR_SCAN_CONTEXT* context, int message, void* mes
     }
 
     try {
-        // スキャナーの取得と検証 - 型変換を修正
-        YamaScanner* scanner = static_cast<YamaScanner*>(user_data);
+        // user_dataが実際にはYrResultオブジェクトへのポインタ
+        auto yrResult = static_cast<YrResult*>(user_data);
+        if (yrResult == nullptr) {
+            LOGERROR("YrScanCallback: Invalid YrResult pointer");
+            return CALLBACK_ERROR;
+        }
         
         // メッセージ種別の処理
         switch (message) {
@@ -70,13 +74,14 @@ int YaraManager::YrScanCallback(YR_SCAN_CONTEXT* context, int message, void* mes
                     return CALLBACK_ERROR;
                 }
 
-                LOGTRACE("YrScanCallback: Rule matched: {}", rule->identifier);
+                // マッチしたルールの識別子を記録
+                std::string ruleName(rule->identifier);
+                LOGTRACE("YrScanCallback: Rule matched: {}", ruleName);
                 
-                // この時点でスキャン対象プロセスを記録
-                if (scanner != nullptr) {
-                    scanner->AddSuspiciousProcess();
-                } else {
-                    LOGERROR("YrScanCallback: Scanner is NULL, cannot add suspicious process");
+                // 結果オブジェクトを更新
+                yrResult->result = true;
+                if (yrResult->matchRuleSet != nullptr) {
+                    yrResult->matchRuleSet->insert(ruleName);
                 }
                 
                 return CALLBACK_CONTINUE;
