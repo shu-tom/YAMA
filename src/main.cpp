@@ -28,10 +28,26 @@
 const char* version = "1.0";
 
 extern "C" YAMA_API int __stdcall MemoryScan(const char* ruleString, const char** result) {
+    // ポインタと入力の検証
+    if (result == nullptr) {
+        LOGERROR("Result pointer is null");
+        return -1;
+    }
+    
+    *result = nullptr; // 初期化
+    
+    if (ruleString == nullptr) {
+        LOGERROR("Rule string is null");
+        char* pszReturn = (char*)::CoTaskMemAlloc(256);
+        if (pszReturn) {
+            strcpy_s(pszReturn, 256, "Error: Rule string is null");
+            *result = pszReturn;
+        }
+        return -2;
+    }
+
     try {
         // デフォルト値を設定
-        *result = nullptr; // 最初に初期化して安全に
-
         int verbosity = 0;
         std::string strOutputPath = "./";
         bool isJson = false;
@@ -43,7 +59,6 @@ extern "C" YAMA_API int __stdcall MemoryScan(const char* ruleString, const char*
         DWORD dwResult = GetFullPathNameW(yama::StdStringToWideChar(strOutputPath), MAX_PATH, lpwcAbsPath, NULL);
         if (dwResult == 0) {
             LOGERROR("Failed to expand relative path. Set valid path.");
-            //return nullptr;
         }
         if (!yama::PathExistsW(lpwcAbsPath)) {
             LOGWARN("Output path does not exist: {}", yama::WideCharToUtf8(lpwcAbsPath));
@@ -63,23 +78,29 @@ extern "C" YAMA_API int __stdcall MemoryScan(const char* ruleString, const char*
 
         auto scanner = std::make_unique<yama::YamaScanner>(&vPids);
         
+        // ルールの追加
         yama::YaraManager manager;
         if (!manager.YrAddRuleFromString(ruleString)) {
             LOGERROR("Failed to add rule from string.");
             char* pszReturn = (char*)::CoTaskMemAlloc(256);
-            strcpy(pszReturn, "Error: Failed to add YARA rule");
-            *result = pszReturn;
+            if (pszReturn) {
+                strcpy_s(pszReturn, 256, "Error: Failed to add YARA rule");
+                *result = pszReturn;
+            }
             return 0;
         }
 
+        // プロセススキャン - 例外をキャッチ
         try {
             scanner->ScanPidList();
         }
         catch (const std::exception& ex) {
             LOGERROR("Exception during scanning: {}", ex.what());
             char* pszReturn = (char*)::CoTaskMemAlloc(256);
-            sprintf(pszReturn, "Error during scanning: %s", ex.what());
-            *result = pszReturn;
+            if (pszReturn) {
+                sprintf_s(pszReturn, 256, "Error during scanning: %s", ex.what());
+                *result = pszReturn;
+            }
             return 0;
         }
 
@@ -106,14 +127,20 @@ extern "C" YAMA_API int __stdcall MemoryScan(const char* ruleString, const char*
 
             if (!strReport) {
                 LOGERROR("Failed to generate report.");
-                //return nullptr;
             }
         }
 
+        // 結果の生成
         size_t len = strReport->size() + 1;
         char* pszReturn = (char*)::CoTaskMemAlloc(len);
-        memcpy(pszReturn, strReport->c_str(), len);
-        *result = pszReturn;
+        if (pszReturn) {
+            memcpy_s(pszReturn, len, strReport->c_str(), len);
+            *result = pszReturn;
+        }
+        else {
+            LOGERROR("Failed to allocate memory for result");
+            return -3;
+        }
 
         if (context->canRecordEventlog) { 
             EventWriteProcessStopped(); 
@@ -125,15 +152,19 @@ extern "C" YAMA_API int __stdcall MemoryScan(const char* ruleString, const char*
     catch (const std::exception& ex) {
         LOGERROR("Exception caught: {}", ex.what());
         char* pszReturn = (char*)::CoTaskMemAlloc(256);
-        sprintf(pszReturn, "Error: %s", ex.what());
-        *result = pszReturn;
+        if (pszReturn) {
+            sprintf_s(pszReturn, 256, "Error: %s", ex.what());
+            *result = pszReturn;
+        }
         return 0;
     }
     catch (...) {
         LOGERROR("Unknown exception caught.");
         char* pszReturn = (char*)::CoTaskMemAlloc(256);
-        strcpy(pszReturn, "Error: Unknown exception");
-        *result = pszReturn;
+        if (pszReturn) {
+            strcpy_s(pszReturn, 256, "Error: Unknown exception");
+            *result = pszReturn;
+        }
         return 0;
     }
 }
