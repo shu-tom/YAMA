@@ -44,25 +44,59 @@ bool YaraManager::YrAddRuleFromString(const char* strRule) {
 
 int YaraManager::YrScanCallback(YR_SCAN_CONTEXT* context, int message, void* message_data,
                                 void* user_data) {
-    LOGTRACE("YrScanCallback. {:d}", message);
-    if (message == CALLBACK_MSG_RULE_MATCHING) {
-        YR_RULE* yrRule = (YR_RULE*)message_data;
-        YR_STRING* yrString = nullptr;
-        char* lpcRuleName = new char[128]();
-        strncpy_s(lpcRuleName, 128, yrRule->identifier, strlen(yrRule->identifier));
-        LOGTRACE("[MATCH] rulename: {}", lpcRuleName);
-        reinterpret_cast<YrResult*>(user_data)->result = true;
-        std::string* strRuleName = new std::string(lpcRuleName); 
-        reinterpret_cast<YrResult*>(user_data)->matchRuleSet->insert(*strRuleName);
-        
-        // release buffer
-        delete[] lpcRuleName;
-        lpcRuleName = nullptr;
-
-        yr_rule_strings_foreach(yrRule, yrString) {}
+    // NULL安全性チェック
+    if (user_data == nullptr) {
+        LOGERROR("YrScanCallback: user_data is NULL");
+        return CALLBACK_ERROR;
     }
 
-    return CALLBACK_CONTINUE;
+    // スキャナーの取得と検証
+    auto scanner = static_cast<yama::YamaScanner*>(user_data);
+    if (scanner == nullptr) {
+        LOGERROR("YrScanCallback: Invalid scanner pointer");
+        return CALLBACK_ERROR;
+    }
+
+    try {
+        // メッセージ種別の処理
+        switch (message) {
+            case CALLBACK_MSG_RULE_MATCHING: {
+                // ルールマッチング時の安全な処理
+                if (message_data == nullptr) {
+                    LOGERROR("YrScanCallback: message_data is NULL for CALLBACK_MSG_RULE_MATCHING");
+                    return CALLBACK_ERROR;
+                }
+
+                auto rule = static_cast<YR_RULE*>(message_data);
+                if (rule == nullptr || rule->identifier == nullptr) {
+                    LOGERROR("YrScanCallback: rule or rule identifier is NULL");
+                    return CALLBACK_ERROR;
+                }
+
+                LOGTRACE("YrScanCallback. 3 (yaramanager.cpp:YrScanCallback L#47)");
+                
+                // この時点でスキャン対象プロセスを記録
+                scanner->AddSuspiciousProcess();
+                
+                return CALLBACK_CONTINUE;
+            }
+            // その他のメッセージ処理
+            case CALLBACK_MSG_RULE_NOT_MATCHING:
+                return CALLBACK_CONTINUE;
+            case CALLBACK_MSG_SCAN_FINISHED:
+                return CALLBACK_CONTINUE;
+            default:
+                return CALLBACK_ERROR;
+        }
+    }
+    catch (const std::exception& ex) {
+        LOGERROR("Exception in YrScanCallback: {}", ex.what());
+        return CALLBACK_ERROR;
+    }
+    catch (...) {
+        LOGERROR("Unknown exception in YrScanCallback");
+        return CALLBACK_ERROR;
+    }
 }
 
 void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, void* lpUserData) {
