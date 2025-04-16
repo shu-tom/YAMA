@@ -1,4 +1,5 @@
 #include "yaramanager.hpp"
+#include "yamascanner.hpp" // YamaScannerクラスのヘッダーをインクルード
 
 namespace yama {
 
@@ -50,14 +51,10 @@ int YaraManager::YrScanCallback(YR_SCAN_CONTEXT* context, int message, void* mes
         return CALLBACK_ERROR;
     }
 
-    // スキャナーの取得と検証
-    auto scanner = static_cast<yama::YamaScanner*>(user_data);
-    if (scanner == nullptr) {
-        LOGERROR("YrScanCallback: Invalid scanner pointer");
-        return CALLBACK_ERROR;
-    }
-
     try {
+        // スキャナーの取得と検証 - 型変換を修正
+        YamaScanner* scanner = static_cast<YamaScanner*>(user_data);
+        
         // メッセージ種別の処理
         switch (message) {
             case CALLBACK_MSG_RULE_MATCHING: {
@@ -73,14 +70,17 @@ int YaraManager::YrScanCallback(YR_SCAN_CONTEXT* context, int message, void* mes
                     return CALLBACK_ERROR;
                 }
 
-                LOGTRACE("YrScanCallback. 3 (yaramanager.cpp:YrScanCallback L#47)");
+                LOGTRACE("YrScanCallback: Rule matched: {}", rule->identifier);
                 
                 // この時点でスキャン対象プロセスを記録
-                scanner->AddSuspiciousProcess();
+                if (scanner != nullptr) {
+                    scanner->AddSuspiciousProcess();
+                } else {
+                    LOGERROR("YrScanCallback: Scanner is NULL, cannot add suspicious process");
+                }
                 
                 return CALLBACK_CONTINUE;
             }
-            // その他のメッセージ処理
             case CALLBACK_MSG_RULE_NOT_MATCHING:
                 return CALLBACK_CONTINUE;
             case CALLBACK_MSG_SCAN_FINISHED:
