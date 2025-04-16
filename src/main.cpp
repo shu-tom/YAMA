@@ -34,7 +34,7 @@ extern "C" YAMA_API int __stdcall MemoryScan(const char* ruleString, const char*
         bool isJson = false;
 
         spdlog::set_pattern("%^%-9l%$: %v");
-        spdlog::set_level(spdlog::level::warn);
+        spdlog::set_level(spdlog::level::trace);
 
         wchar_t lpwcAbsPath[MAX_PATH] = {0};
         DWORD dwResult = GetFullPathNameW(yama::StdStringToWideChar(strOutputPath), MAX_PATH, lpwcAbsPath, NULL);
@@ -95,7 +95,6 @@ extern "C" YAMA_API int __stdcall MemoryScan(const char* ruleString, const char*
             }
         }
 
-        // マルチバイト文字列として確保
         size_t len = strReport->size() + 1;
         char* pszReturn = (char*)::CoTaskMemAlloc(len);
         memcpy(pszReturn, strReport->c_str(), len);
@@ -110,11 +109,17 @@ extern "C" YAMA_API int __stdcall MemoryScan(const char* ruleString, const char*
     }
     catch (const std::exception& ex) {
         LOGERROR("Exception caught: {}", ex.what());
-        //return nullptr;
+        char* pszReturn = (char*)::CoTaskMemAlloc(256);
+        sprintf(pszReturn, "Error: %s", ex.what());
+        *result = pszReturn;
+        return 0;
     }
     catch (...) {
         LOGERROR("Unknown exception caught.");
-        //return nullptr;
+        char* pszReturn = (char*)::CoTaskMemAlloc(256);
+        strcpy(pszReturn, "Error: Unknown exception");
+        *result = pszReturn;
+        return 0;
     }
 }
 
