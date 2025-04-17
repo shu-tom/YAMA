@@ -107,6 +107,7 @@ int YaraManager::YrScanCallback(YR_SCAN_CONTEXT* context, int message, void* mes
 void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, void* lpUserData) {
     // printf("YrScanBuffer. Va:%#.16I64x Size:%d\n",
     // reinterpret_cast<uint64_t>(lpBuffer), dwBufferSize);
+    LOGTRACE("YaraManager::YrScanBuffer. Va:{:#x} Size:{}", reinterpret_cast<uint64_t>(lpBuffer), dwBufferSize);
     yr_rules_scan_mem(this->YrRules, lpBuffer, dwBufferSize, SCAN_FLAGS_REPORT_RULES_MATCHING,
                       this->YrScanCallback, lpUserData, 0);
     // printf("YrScanBuffer finished.\n");
