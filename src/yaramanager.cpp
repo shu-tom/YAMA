@@ -43,6 +43,7 @@ bool YaraManager::YrAddRuleFromString(const char* strRule) {
     return true;
 }
 
+// YARAスキャンコールバック関数の修正
 int YaraManager::YrScanCallback(YR_SCAN_CONTEXT* context, int message, void* message_data,
                                 void* user_data) {
     // NULL安全性チェック
@@ -104,9 +105,28 @@ int YaraManager::YrScanCallback(YR_SCAN_CONTEXT* context, int message, void* mes
     }
 }
 
-void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, void* lpUserData) {
-    // メモリスキャンの安全性を向上
+// SEHを使用するヘルパー関数を追加
+int YaraManager::ScanMemWithSEH(YR_RULES* rules, const unsigned char* buffer, 
+                               int size, int flags, YR_CALLBACK_FUNC callback, 
+                               void* userData, int timeout) {
+    __try {
+        return yr_rules_scan_mem(
+            rules,     // YARAルール
+            buffer,    // スキャン対象バッファ
+            size,      // バッファサイズ
+            flags,     // スキャンフラグ
+            callback,  // コールバック関数
+            userData,  // コールバック用データ
+            timeout    // タイムアウト（秒）
+        );
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER) {
+        LOGERROR("SEH exception in yr_rules_scan_mem: {}", GetExceptionCode());
+        return ERROR_INTERNAL_FATAL_ERROR;
+    }
+}
 
+void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, void* lpUserData) {
     // バッファとサイズの検証
     if (lpBuffer == nullptr || dwBufferSize <= 0) {
         LOGERROR("YrScanBuffer: Invalid buffer parameters. Buffer: {:#x}, Size: {}", 
@@ -131,21 +151,15 @@ void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, 
         int timeout = 30; // 30秒
         int flags = SCAN_FLAGS_REPORT_RULES_MATCHING;
         
-        // 例外発生時に備えてSEH（構造化例外処理）を使用
-        __try {
-            yr_rules_scan_mem(
-                this->YrRules,    // YARAルール
-                lpBuffer,         // スキャン対象バッファ
-                safeSize,         // バッファサイズ（安全な範囲に制限）
-                flags,            // スキャンフラグ
-                this->YrScanCallback, // コールバック関数
-                lpUserData,       // コールバック用データ
-                timeout           // タイムアウト（秒）
-            );
+        // SEH処理を別関数に分離して呼び出す
+        int result = ScanMemWithSEH(
+            this->YrRules, lpBuffer, safeSize, flags, 
+            this->YrScanCallback, lpUserData, timeout);
+            
+        if (result == ERROR_SUCCESS) {
             LOGTRACE("YrScanBuffer scan completed successfully");
-        }
-        __except(EXCEPTION_EXECUTE_HANDLER) {
-            LOGERROR("SEH exception in yr_rules_scan_mem: {}", GetExceptionCode());
+        } else {
+            LOGWARN("YrScanBuffer scan returned error code: {}", result);
         }
     }
     catch (const std::exception& ex) {

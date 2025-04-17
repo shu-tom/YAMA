@@ -23,6 +23,11 @@ class YaraManager {
     YR_SCANNER* YrScanner = nullptr;
     YR_RULES* YrRules = nullptr;
 
+    // SEH処理を分離した内部ヘルパーメソッドを追加
+    int ScanMemWithSEH(YR_RULES* rules, const unsigned char* buffer, 
+                      int size, int flags, YR_CALLBACK_FUNC callback, 
+                      void* userData, int timeout);
+
    public:
     YaraManager();
     static int YrScanCallback(YR_SCAN_CONTEXT* context, int message, void* message_data,
