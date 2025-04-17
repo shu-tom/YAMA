@@ -128,16 +128,18 @@ int YaraManager::ScanMemWithSEH(YR_RULES* rules, const unsigned char* buffer,
 
 void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, void* lpUserData) {
     // バッファとサイズの検証
+    LOGTRACE("YrScanBuffer first:");
     if (lpBuffer == nullptr || dwBufferSize <= 0) {
-        LOGERROR("YrScanBuffer: Invalid buffer parameters. Buffer: {:#x}, Size: {}", 
+        LOGTRACE("YrScanBuffer: Invalid buffer parameters. Buffer: {:#x}, Size: {}", 
                  reinterpret_cast<uint64_t>(lpBuffer), dwBufferSize);
         return;
     }
 
     if (this->YrRules == nullptr) {
-        LOGERROR("YrScanBuffer: YrRules is NULL");
+        LOGTRACE("YrScanBuffer: YrRules is NULL");
         return;
     }
+    LOGTRACE("YrScanBuffer second:");
 
     // バッファのサイズを安全な範囲に制限
     const int MAX_SAFE_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
@@ -163,10 +165,10 @@ void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, 
         }
     }
     catch (const std::exception& ex) {
-        LOGERROR("Exception in YrScanBuffer: {}", ex.what());
+        LOGTRACE("Exception in YrScanBuffer: {}", ex.what());
     }
     catch (...) {
-        LOGERROR("Unknown exception in YrScanBuffer");
+        LOGTRACE("Unknown exception in YrScanBuffer");
     }
 }
 
