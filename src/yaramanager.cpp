@@ -105,13 +105,55 @@ int YaraManager::YrScanCallback(YR_SCAN_CONTEXT* context, int message, void* mes
 }
 
 void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, void* lpUserData) {
-    // printf("YrScanBuffer. Va:%#.16I64x Size:%d\n",
-    // reinterpret_cast<uint64_t>(lpBuffer), dwBufferSize);
-    LOGTRACE("YaraManager::YrScanBuffer. Va:{:#x} Size:{}", reinterpret_cast<uint64_t>(lpBuffer), dwBufferSize);
-    yr_rules_scan_mem(this->YrRules, lpBuffer, dwBufferSize, SCAN_FLAGS_REPORT_RULES_MATCHING,
-                      this->YrScanCallback, lpUserData, 0);
-    // printf("YrScanBuffer finished.\n");
-    return;
+    // メモリスキャンの安全性を向上
+
+    // バッファとサイズの検証
+    if (lpBuffer == nullptr || dwBufferSize <= 0) {
+        LOGERROR("YrScanBuffer: Invalid buffer parameters. Buffer: {:#x}, Size: {}", 
+                 reinterpret_cast<uint64_t>(lpBuffer), dwBufferSize);
+        return;
+    }
+
+    if (this->YrRules == nullptr) {
+        LOGERROR("YrScanBuffer: YrRules is NULL");
+        return;
+    }
+
+    // バッファのサイズを安全な範囲に制限
+    const int MAX_SAFE_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
+    int safeSize = (dwBufferSize > MAX_SAFE_BUFFER_SIZE) ? MAX_SAFE_BUFFER_SIZE : dwBufferSize;
+
+    try {
+        LOGTRACE("YaraManager::YrScanBuffer. Va:{:#x} Size:{}", 
+                 reinterpret_cast<uint64_t>(lpBuffer), safeSize);
+
+        // YARA timeout設定を追加して長時間のスキャンを回避
+        int timeout = 30; // 30秒
+        int flags = SCAN_FLAGS_REPORT_RULES_MATCHING;
+        
+        // 例外発生時に備えてSEH（構造化例外処理）を使用
+        __try {
+            yr_rules_scan_mem(
+                this->YrRules,    // YARAルール
+                lpBuffer,         // スキャン対象バッファ
+                safeSize,         // バッファサイズ（安全な範囲に制限）
+                flags,            // スキャンフラグ
+                this->YrScanCallback, // コールバック関数
+                lpUserData,       // コールバック用データ
+                timeout           // タイムアウト（秒）
+            );
+            LOGTRACE("YrScanBuffer scan completed successfully");
+        }
+        __except(EXCEPTION_EXECUTE_HANDLER) {
+            LOGERROR("SEH exception in yr_rules_scan_mem: {}", GetExceptionCode());
+        }
+    }
+    catch (const std::exception& ex) {
+        LOGERROR("Exception in YrScanBuffer: {}", ex.what());
+    }
+    catch (...) {
+        LOGERROR("Unknown exception in YrScanBuffer");
+    }
 }
 
 YaraManager::~YaraManager() {

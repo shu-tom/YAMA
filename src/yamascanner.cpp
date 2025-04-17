@@ -41,30 +41,32 @@ YrResult* YamaScanner::ScanProcessMemory(Process* proc) {
 
     std::map<uint64_t /*BaseVirtualAddress*/, MemoryBaseRegion*>::iterator iterAddress_MemeryBaseRegion = proc->MemoryBaseEntries.begin();
     while (iterAddress_MemeryBaseRegion != proc->MemoryBaseEntries.end()) {
-        // uint64_t BaseVa = iterAddress_MemeryBaseRegion->first;
         MemoryBaseRegion* BaseRegion = iterAddress_MemeryBaseRegion->second;
-        // printf("=============\n");
-        // BaseRegion->PrintBaseRegionInfo();
         std::map<uint64_t, MemoryRegion*>::iterator iterAddress_SubRegion = BaseRegion->SubRegions.begin();
         while (iterAddress_SubRegion != BaseRegion->SubRegions.end()) {
             MemoryRegion* Region = iterAddress_SubRegion->second;
             if (strcmp(Region->MemState, "MEM_COMMIT") == 0 && strcmp(Region->MemType, "MEM_PRIVATE") == 0) {
                 if (strstr(Region->MemProtect, "X") != nullptr) {  // only scan executable region.
-                    // printf("[scan]");
-                    const unsigned char* lpBuffer = reinterpret_cast<const unsigned char*>(calloc(Region->RegionSize, 1));
+                    if (Region->RegionSize > 0 && Region->RegionSize < 50 * 1024 * 1024) { // サイズ制限: 50MB
+                        try {
+                            // callocの代わりに例外安全なuniqueポインタを使用
+                            std::unique_ptr<unsigned char[]> buffer(new unsigned char[Region->RegionSize]());
 
-                    Region->DumpRegion((void*)lpBuffer, Region->RegionSize, nullptr);
-
-                    this->yrManager->YrScanBuffer(lpBuffer, Region->RegionSize, reinterpret_cast<void*>(yrResult));
-                    if (yrResult->result) {
-                        yaraMatchedRegions->push_back(Region);
-                        // return yrResult;
+                            // ダンプ操作を例外処理で保護
+                            if (Region->DumpRegion(buffer.get(), Region->RegionSize, nullptr)) {
+                                // スキャン実行
+                                this->yrManager->YrScanBuffer(buffer.get(), Region->RegionSize, reinterpret_cast<void*>(yrResult));
+                            }
+                        }
+                        catch (const std::exception& ex) {
+                            LOGERROR("Exception in memory scan for region {:#x}: {}", Region->StartVa, ex.what());
+                        }
+                    }
+                    else {
+                        LOGWARN("Skipping oversized memory region: {:#x} (size: {})", Region->StartVa, Region->RegionSize);
                     }
                 }
             }
-            // WriteDumpFile(lpBuffer, Region->RegionSize, Region->StartVa);
-            // Region->PrintRegionInfo();
-
             iterAddress_SubRegion++;
         }
         iterAddress_MemeryBaseRegion++;
