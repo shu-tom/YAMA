@@ -127,19 +127,47 @@ int YaraManager::ScanMemWithSEH(YR_RULES* rules, const unsigned char* buffer,
 }
 
 void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, void* lpUserData) {
-    // 基本的な安全チェックだけ実施し、実際のスキャンはスキップ
-    LOGTRACE("YrScanBuffer - Safe mode: Buffer:{:#x}, Size:{}", 
-             reinterpret_cast<uint64_t>(lpBuffer), dwBufferSize);
-
-    // user_dataがYrResultの場合だけ処理
-    if (lpUserData == nullptr) {
-        LOGTRACE("YrScanBuffer: lpUserData is NULL");
+    // バッファとサイズの検証
+    if (lpBuffer == nullptr || dwBufferSize <= 0) {
+        LOGERROR("YrScanBuffer: Invalid buffer parameters. Buffer: {:#x}, Size: {}", 
+                 reinterpret_cast<uint64_t>(lpBuffer), dwBufferSize);
         return;
     }
 
-    // 実際のYARAスキャンは行わず、必要に応じてテスト結果を設定
-    // この関数はYamaScannerでダミー検出が設定されているため
-    // ここではスキャンせず通過だけさせる
+    if (this->YrRules == nullptr) {
+        LOGERROR("YrScanBuffer: YrRules is NULL");
+        return;
+    }
+
+    // バッファのサイズを安全な範囲に制限
+    const int MAX_SAFE_BUFFER_SIZE = 1 * 1024 * 1024; // 1MB - Phase 1では小さめに制限
+    int safeSize = (dwBufferSize > MAX_SAFE_BUFFER_SIZE) ? MAX_SAFE_BUFFER_SIZE : dwBufferSize;
+
+    try {
+        LOGTRACE("YaraManager::YrScanBuffer. Va:{:#x} Size:{}", 
+                reinterpret_cast<uint64_t>(lpBuffer), safeSize);
+
+        // YARA timeout設定を追加して長時間のスキャンを回避
+        int timeout = 10; // Phase 1では10秒に制限
+        int flags = SCAN_FLAGS_REPORT_RULES_MATCHING;
+        
+        // SEH処理を別関数に分離して呼び出す
+        int result = ScanMemWithSEH(
+            this->YrRules, lpBuffer, safeSize, flags, 
+            this->YrScanCallback, lpUserData, timeout);
+            
+        if (result == ERROR_SUCCESS) {
+            LOGTRACE("YrScanBuffer scan completed successfully");
+        } else {
+            LOGWARN("YrScanBuffer scan returned error code: {}", result);
+        }
+    }
+    catch (const std::exception& ex) {
+        LOGERROR("Exception in YrScanBuffer: {}", ex.what());
+    }
+    catch (...) {
+        LOGERROR("Unknown exception in YrScanBuffer");
+    }
 }
 
 YaraManager::~YaraManager() {

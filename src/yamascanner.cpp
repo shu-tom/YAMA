@@ -37,32 +37,72 @@ YrResult* YamaScanner::ScanProcessMemory(Process* proc) {
     YrResult* yrResult = new YrResult();
     yrResult->result = false;
     yrResult->matchRuleSet = new std::unordered_set<std::string>();
-    
-    // 安全なスキャン機能 - 一部のプロセスのみスキャン
-    LOGTRACE("Safe scanning for process: {} ({})", proc->pid, WideCharToUtf8(proc->wcProcessName));
-    
-    // まずは明らかに安全な対象だけをスキャン
-    // プロセス名がnotepad.exeの場合にテストマッチを行う
-    if (proc->wcProcessName != nullptr && 
-        (_wcsicmp(proc->wcProcessName, L"notepad.exe") == 0 || 
-         _wcsicmp(proc->wcProcessName, L"calc.exe") == 0)) {
-        
-        LOGTRACE("Sample match for test process: {}", WideCharToUtf8(proc->wcProcessName));
-        
-        // テスト用に検出をシミュレート
-        yrResult->result = true;
-        yrResult->matchRuleSet->insert("test_rule_match");
-    }
-    
-    // 本来のスキャンコードはコメントアウト
-    /*
     std::vector<MemoryRegion*> *yaraMatchedRegions = new std::vector<MemoryRegion*>();
 
-    std::map<uint64_t, MemoryBaseRegion*>::iterator iterAddress_MemeryBaseRegion = proc->MemoryBaseEntries.begin();
-    while (iterAddress_MemeryBaseRegion != proc->MemoryBaseEntries.end()) {
-        // ...existing code...
+    // Phase 2: 安全なプロセスのみ実際にスキャン
+    bool safeToScan = false;
+    const wchar_t* safeProcesses[] = {
+        L"notepad.exe", L"calc.exe", L"explorer.exe", L"mspaint.exe" 
+    };
+    
+    // プロセスが安全なリストに含まれているか確認
+    if (proc->wcProcessName != nullptr) {
+        for (const wchar_t* safeProcName : safeProcesses) {
+            if (_wcsicmp(proc->wcProcessName, safeProcName) == 0) {
+                safeToScan = true;
+                LOGTRACE("Process selected for full scan: {}", WideCharToUtf8(proc->wcProcessName));
+                break;
+            }
+        }
     }
-    */
+    
+    // 安全でないプロセスは早期リターン
+    if (!safeToScan) {
+        LOGTRACE("Skipping full scan for process: {}", WideCharToUtf8(proc->wcProcessName));
+        return yrResult;
+    }
+
+    // 選択されたプロセスのみ実際のスキャン実行
+    // Phase 2では少数のメモリ領域のみスキャン
+    int scannedRegionsCount = 0;
+    const int MAX_REGIONS_TO_SCAN = 5;  // 最大スキャン領域数
+
+    std::map<uint64_t /*BaseVirtualAddress*/, MemoryBaseRegion*>::iterator iterAddress_MemeryBaseRegion 
+        = proc->MemoryBaseEntries.begin();
+    
+    while (iterAddress_MemeryBaseRegion != proc->MemoryBaseEntries.end() && scannedRegionsCount < MAX_REGIONS_TO_SCAN) {
+        MemoryBaseRegion* BaseRegion = iterAddress_MemeryBaseRegion->second;
+        
+        std::map<uint64_t, MemoryRegion*>::iterator iterAddress_SubRegion = BaseRegion->SubRegions.begin();
+        while (iterAddress_SubRegion != BaseRegion->SubRegions.end() && scannedRegionsCount < MAX_REGIONS_TO_SCAN) {
+            MemoryRegion* Region = iterAddress_SubRegion->second;
+            if (strcmp(Region->MemState, "MEM_COMMIT") == 0 && strcmp(Region->MemType, "MEM_PRIVATE") == 0) {
+                if (strstr(Region->MemProtect, "X") != nullptr) {  // only scan executable region.
+                    if (Region->RegionSize > 0 && Region->RegionSize < 1 * 1024 * 1024) { // 1MB以下のリージョンのみ
+                        try {
+                            // 安全なメモリ管理を実施
+                            std::unique_ptr<unsigned char[]> buffer(new unsigned char[Region->RegionSize]());
+
+                            if (Region->DumpRegion(buffer.get(), Region->RegionSize, nullptr)) {
+                                this->yrManager->YrScanBuffer(buffer.get(), Region->RegionSize, reinterpret_cast<void*>(yrResult));
+                                scannedRegionsCount++;
+                                LOGTRACE("Scanned memory region #{} at {:#x}, size: {}", 
+                                          scannedRegionsCount, Region->StartVa, Region->RegionSize);
+                            }
+                        }
+                        catch (const std::exception& ex) {
+                            LOGERROR("Exception in memory scan for region {:#x}: {}", Region->StartVa, ex.what());
+                        }
+                    }
+                }
+            }
+            iterAddress_SubRegion++;
+        }
+        iterAddress_MemeryBaseRegion++;
+    }
+    
+    LOGTRACE("Completed scanning {} memory regions for process {} ({})",
+             scannedRegionsCount, proc->pid, WideCharToUtf8(proc->wcProcessName));
     
     return yrResult;
 }
