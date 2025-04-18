@@ -139,21 +139,27 @@ void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, 
         return;
     }
 
-    // バッファのサイズを安全な範囲に制限
-    const int MAX_SAFE_BUFFER_SIZE = 1 * 1024 * 1024; // 1MB - Phase 1では小さめに制限
-    int safeSize = (dwBufferSize > MAX_SAFE_BUFFER_SIZE) ? MAX_SAFE_BUFFER_SIZE : dwBufferSize;
+    // 現段階での対応: 小さいサイズのバッファに限定 (1MB未満)
+    if (dwBufferSize >= 1 * 1024 * 1024) {
+        LOGWARN("YrScanBuffer: Skipping large buffer: {:#x}, Size: {}", 
+               reinterpret_cast<uint64_t>(lpBuffer), dwBufferSize);
+        return;
+    }
 
+    LOGTRACE("YaraManager::YrScanBuffer. Va:{:#x} Size:{}", 
+             reinterpret_cast<uint64_t>(lpBuffer), dwBufferSize);
+
+    // Phase 1では実スキャンを無効化 - 安全のため
+    LOGTRACE("YrScanBuffer: Scan skipped for safety in current phase");
+    
+    /* 
+    // 次のフェーズで有効化する実際のスキャンコード
     try {
-        LOGTRACE("YaraManager::YrScanBuffer. Va:{:#x} Size:{}", 
-                reinterpret_cast<uint64_t>(lpBuffer), safeSize);
-
-        // YARA timeout設定を追加して長時間のスキャンを回避
-        int timeout = 10; // Phase 1では10秒に制限
+        int timeout = 10;
         int flags = SCAN_FLAGS_REPORT_RULES_MATCHING;
         
-        // SEH処理を別関数に分離して呼び出す
         int result = ScanMemWithSEH(
-            this->YrRules, lpBuffer, safeSize, flags, 
+            this->YrRules, lpBuffer, dwBufferSize, flags, 
             this->YrScanCallback, lpUserData, timeout);
             
         if (result == ERROR_SUCCESS) {
@@ -168,6 +174,7 @@ void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, 
     catch (...) {
         LOGERROR("Unknown exception in YrScanBuffer");
     }
+    */
 }
 
 YaraManager::~YaraManager() {
