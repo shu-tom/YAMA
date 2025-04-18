@@ -38,9 +38,9 @@ YrResult* YamaScanner::ScanProcessMemory(Process* proc) {
     yrResult->result = false;
     yrResult->matchRuleSet = new std::unordered_set<std::string>();
     
-    // 安全なプロセスのリスト
+    // 安全なプロセスのリスト - Phase 2ではリストを拡大
     const wchar_t* safeProcesses[] = {
-        L"notepad.exe", L"calc.exe", L"mspaint.exe" 
+        L"notepad.exe", L"calc.exe", L"mspaint.exe", L"wordpad.exe"
     };
     
     // プロセス名を取得して安全かどうか確認
@@ -55,9 +55,8 @@ YrResult* YamaScanner::ScanProcessMemory(Process* proc) {
         }
     }
     
-    // 安全でないプロセスの場合はテストマッチだけを行う
+    // テスト用のnotepad検出を維持（安全でないプロセスの場合はシミュレーションのみ）
     if (!safeToScan) {
-        // テスト用にnotepad.exeの場合だけ検出をシミュレート（既存のコードを維持）
         if (proc->wcProcessName != nullptr && _wcsicmp(proc->wcProcessName, L"notepad.exe") == 0) {
             LOGTRACE("Test match for process: {}", WideCharToUtf8(proc->wcProcessName));
             yrResult->result = true;
@@ -67,13 +66,12 @@ YrResult* YamaScanner::ScanProcessMemory(Process* proc) {
         return yrResult;
     }
     
-    // 実際のスキャンを行う - Phase 1では非常に限定的に
+    // 実際のスキャンを行う - Phase 2では条件を緩和
     LOGTRACE("Performing actual scan for process: {}", WideCharToUtf8(proc->wcProcessName));
     
-    // スキャン対象領域の制限
+    // スキャン対象領域の制限（Phase 2では増加）
     int scannedRegionsCount = 0;
-    const int MAX_REGIONS_TO_SCAN = 2;  // Phase 1ではごく少数の領域のみをスキャン
-    std::vector<MemoryRegion*> yaraMatchedRegions;
+    const int MAX_REGIONS_TO_SCAN = 5;  // Phase 2では5領域に増加
     
     std::map<uint64_t, MemoryBaseRegion*>::iterator iterBase = proc->MemoryBaseEntries.begin();
     while (iterBase != proc->MemoryBaseEntries.end() && scannedRegionsCount < MAX_REGIONS_TO_SCAN) {
@@ -82,16 +80,17 @@ YrResult* YamaScanner::ScanProcessMemory(Process* proc) {
         std::map<uint64_t, MemoryRegion*>::iterator iterSub = baseRegion->SubRegions.begin();
         while (iterSub != baseRegion->SubRegions.end() && scannedRegionsCount < MAX_REGIONS_TO_SCAN) {
             MemoryRegion* region = iterSub->second;
-            // 実行可能な小さなメモリ領域のみをスキャン
-            if (strcmp(region->MemState, "MEM_COMMIT") == 0 && 
-                strcmp(region->MemType, "MEM_PRIVATE") == 0 &&
-                strstr(region->MemProtect, "X") != nullptr) {
-                
-                // 小さいサイズの領域だけスキャン (512KB未満)
-                if (region->RegionSize > 0 && region->RegionSize < 512 * 1024) {
+            
+            // メモリ領域の選択条件を緩和（Phase 2）
+            if (strcmp(region->MemState, "MEM_COMMIT") == 0) {
+                // サイズ制限を緩和（1MB以下）
+                if (region->RegionSize > 0 && region->RegionSize < 1024 * 1024) {
                     try {
                         // 安全なメモリ割り当て
                         std::unique_ptr<unsigned char[]> buffer(new unsigned char[region->RegionSize]());
+                        
+                        LOGTRACE("Attempting to dump memory region at {:#x}, size: {}, type: {}, protect: {}", 
+                                region->StartVa, region->RegionSize, region->MemType, region->MemProtect);
                         
                         // メモリをダンプ
                         if (region->DumpRegion(buffer.get(), region->RegionSize, nullptr)) {
@@ -99,12 +98,18 @@ YrResult* YamaScanner::ScanProcessMemory(Process* proc) {
                             this->yrManager->YrScanBuffer(buffer.get(), region->RegionSize, yrResult);
                             scannedRegionsCount++;
                             
-                            LOGTRACE("Scanned memory region #{} at {:#x}, size: {}", 
-                                    scannedRegionsCount, region->StartVa, region->RegionSize);
+                            LOGTRACE("Successfully scanned memory region #{} at {:#x}, size: {}", 
+                                     scannedRegionsCount, region->StartVa, region->RegionSize);
+                        }
+                        else {
+                            LOGDEBUG("Failed to dump memory region at {:#x}", region->StartVa);
                         }
                     }
                     catch (const std::exception& ex) {
                         LOGERROR("Exception scanning region {:#x}: {}", region->StartVa, ex.what());
+                    }
+                    catch (...) {
+                        LOGERROR("Unknown exception scanning region {:#x}", region->StartVa);
                     }
                 }
             }

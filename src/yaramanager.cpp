@@ -139,16 +139,16 @@ void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, 
         return;
     }
 
-    // バッファのサイズを安全な範囲に制限
-    const int MAX_SAFE_BUFFER_SIZE = 512 * 1024; // Phase 1では512KB制限
+    // バッファのサイズを安全な範囲に制限 - Phase 2では最大サイズを拡大
+    const int MAX_SAFE_BUFFER_SIZE = 1024 * 1024; // Phase 2では1MB制限
     int safeSize = (dwBufferSize > MAX_SAFE_BUFFER_SIZE) ? MAX_SAFE_BUFFER_SIZE : dwBufferSize;
 
     LOGTRACE("YaraManager::YrScanBuffer. Va:{:#x} Size:{}", 
              reinterpret_cast<uint64_t>(lpBuffer), safeSize);
 
-    // Phase 1では安全なプロセスのみで実スキャンを有効化
+    // Phase 2では実際のスキャンを有効化
     try {
-        int timeout = 5; // Phase 1では5秒制限
+        int timeout = 10; // Phase 2では10秒に延長
         int flags = SCAN_FLAGS_REPORT_RULES_MATCHING;
         
         int result = ScanMemWithSEH(
