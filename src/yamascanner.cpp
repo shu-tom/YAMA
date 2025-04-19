@@ -52,23 +52,87 @@ YrResult* YamaScanner::ScanProcessMemory(Process* proc) {
         return yrResult;
     }
     
-    // フェーズ1では実際のスキャンをスキップ - 安定性を確保するため
-    LOGTRACE("Phase 1: Skipping actual memory scan for notepad.exe - Test mode only");
-    
-    // 以下のコードは将来のフェーズで有効化する
-    /*
+    // フェーズ2: 制限付きメモリスキャンの実施（notepad.exeのみ）
     try {
-        LOGTRACE("Phase 1.5: Scanning notepad process memory regions");
+        LOGTRACE("Phase 2: Limited memory scan for notepad.exe");
         
-        // メモリ領域の統計を収集
+        // 統計カウンタの初期化
         int totalRegions = 0;
         int committedRegions = 0;
         int suitableRegions = 0;
         int scannedRegions = 0;
         
+        // 厳格な制限値
+        const int MAX_REGIONS_TO_SCAN = 3;  // 最大3つの領域のみスキャン
+        const int MAX_REGION_SIZE = 4096;  // 4KB以下の領域のみ
+        
         LOGTRACE("Process has {} memory base entries", proc->MemoryBaseEntries.size());
         
-        // 処理は将来のフェーズで有効化する
+        // 各ベース領域をチェック
+        std::map<uint64_t, MemoryBaseRegion*>::iterator iterBase = proc->MemoryBaseEntries.begin();
+        while (iterBase != proc->MemoryBaseEntries.end() && scannedRegions < MAX_REGIONS_TO_SCAN) {
+            MemoryBaseRegion* baseRegion = iterBase->second;
+            uint64_t baseAddress = iterBase->first;
+            
+            LOGTRACE("Checking base region at {:#x} with {} sub-regions", 
+                     baseAddress, baseRegion->SubRegions.size());
+            
+            // サブ領域をチェック
+            std::map<uint64_t, MemoryRegion*>::iterator iterSub = baseRegion->SubRegions.begin();
+            while (iterSub != baseRegion->SubRegions.end() && scannedRegions < MAX_REGIONS_TO_SCAN) {
+                MemoryRegion* region = iterSub->second;
+                totalRegions++;
+                
+                // コミットされたメモリのみを考慮
+                if (strcmp(region->MemState, "MEM_COMMIT") == 0) {
+                    committedRegions++;
+                    
+                    // 安全なメモリ領域の条件: 小サイズ、プライベート、読み取り可能
+                    if (region->RegionSize > 0 && 
+                        region->RegionSize <= MAX_REGION_SIZE && 
+                        strcmp(region->MemType, "MEM_PRIVATE") == 0 && 
+                        strstr(region->MemProtect, "R") != nullptr) {
+                        
+                        suitableRegions++;
+                        
+                        LOGTRACE("Found suitable memory region at {:#x}, size: {}, type: {}, protect: {}", 
+                                region->StartVa, region->RegionSize, region->MemType, region->MemProtect);
+                        
+                        try {
+                            // バッファを安全に確保
+                            std::unique_ptr<unsigned char[]> buffer(new unsigned char[region->RegionSize]());
+                            
+                            // メモリダンプの実行
+                            LOGTRACE("Attempting to dump region at {:#x}", region->StartVa);
+                            if (region->DumpRegion(buffer.get(), region->RegionSize, nullptr)) {
+                                // YARAスキャンの実行
+                                LOGTRACE("Scanning region at {:#x}", region->StartVa);
+                                this->yrManager->YrScanBuffer(buffer.get(), region->RegionSize, yrResult);
+                                scannedRegions++;
+                                
+                                LOGTRACE("Successfully scanned region #{} at {:#x}", 
+                                        scannedRegions, region->StartVa);
+                            } else {
+                                LOGDEBUG("Failed to dump region at {:#x}", region->StartVa);
+                            }
+                        }
+                        catch (const std::exception& ex) {
+                            LOGERROR("Exception while processing region {:#x}: {}", 
+                                    region->StartVa, ex.what());
+                        }
+                        catch (...) {
+                            LOGERROR("Unknown exception processing region {:#x}", region->StartVa);
+                        }
+                    }
+                }
+                iterSub++;
+            }
+            iterBase++;
+        }
+        
+        // スキャン統計の出力
+        LOGTRACE("Memory scan statistics - Total: {}, Committed: {}, Suitable: {}, Scanned: {}", 
+                totalRegions, committedRegions, suitableRegions, scannedRegions);
     }
     catch (const std::exception& ex) {
         LOGERROR("Exception during process scan: {}", ex.what());
@@ -76,7 +140,6 @@ YrResult* YamaScanner::ScanProcessMemory(Process* proc) {
     catch (...) {
         LOGERROR("Unknown exception during process scan");
     }
-    */
     
     return yrResult;
 }
