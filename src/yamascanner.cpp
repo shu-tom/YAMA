@@ -93,11 +93,17 @@ YrResult* YamaScanner::ScanProcessMemory(Process* proc) {
                         
                         try {
                             // バッファ確保
+                            LOGTRACE("Allocating buffer for memory region at {:#x}, size: {}", 
+                                    region->StartVa, region->RegionSize);
                             std::unique_ptr<unsigned char[]> buffer(new unsigned char[region->RegionSize]());
                             
                             // メモリダンプ試行
+                            LOGTRACE("Dumping memory region at {:#x}, size: {}", 
+                                    region->StartVa, region->RegionSize);
                             if (region->DumpRegion(buffer.get(), region->RegionSize, nullptr)) {
                                 // YARAスキャン実行
+                                LOGTRACE("Scanning memory region at {:#x}, size: {}", 
+                                        region->StartVa, region->RegionSize);
                                 this->yrManager->YrScanBuffer(buffer.get(), region->RegionSize, yrResult);
                                 scannedRegions++;
                                 
