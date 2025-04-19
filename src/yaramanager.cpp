@@ -1,5 +1,7 @@
 #include "yaramanager.hpp"
 #include "yamascanner.hpp" // YamaScannerクラスのヘッダーをインクルード
+#include <iomanip> // setfill, setwに必要
+#include <sstream> // stringstream用
 
 namespace yama {
 
@@ -156,7 +158,8 @@ void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, 
     if (lpBuffer != nullptr) {
         std::stringstream ss;
         ss << "Buffer preview: ";
-        for (int i = 0; i < std::min(16, safeSize); i++) {
+        // Windowsのminマクロ競合を回避するために括弧で囲む
+        for (int i = 0; i < (std::min)(16, safeSize); i++) {
             ss << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(lpBuffer[i]) << " ";
         }
         LOGTRACE("{}", ss.str());

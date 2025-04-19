@@ -68,8 +68,10 @@ YrResult* YamaScanner::ScanProcessMemory(Process* proc) {
         std::map<uint64_t, MemoryBaseRegion*>::iterator iterBase = proc->MemoryBaseEntries.begin();
         while (iterBase != proc->MemoryBaseEntries.end()) {
             MemoryBaseRegion* baseRegion = iterBase->second;
+            uint64_t baseAddress = iterBase->first; // マップのキーを使用
             
-            LOGTRACE("Base region at {:#x} has {} sub-regions", baseRegion->BaseAddress, baseRegion->SubRegions.size());
+            LOGTRACE("Base region at {:#x} has {} sub-regions", 
+                     baseAddress, baseRegion->SubRegions.size());
             
             std::map<uint64_t, MemoryRegion*>::iterator iterSub = baseRegion->SubRegions.begin();
             while (iterSub != baseRegion->SubRegions.end()) {
