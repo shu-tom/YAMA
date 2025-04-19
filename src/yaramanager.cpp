@@ -139,25 +139,40 @@ void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, 
         return;
     }
 
-    // フェーズ1.5: 極めて制限的なスキャンモード
-    // バッファサイズを厳格に制限
-    const int MAX_SAFE_BUFFER_SIZE = 1024; // 1KB制限
+    // バッファサイズ制限を緩和 - フェーズ1.5
+    const int MAX_SAFE_BUFFER_SIZE = 65536; // 64KB制限（1KB→64KBに増加）
     int safeSize = (dwBufferSize > MAX_SAFE_BUFFER_SIZE) ? MAX_SAFE_BUFFER_SIZE : dwBufferSize;
 
     LOGTRACE("YrScanBuffer: Safe scan mode. Va:{:#x} Size:{} (limited from {})", 
              reinterpret_cast<uint64_t>(lpBuffer), safeSize, dwBufferSize);
 
+    // 空のバッファや特殊なケースをチェック（クラッシュ回避）
+    if (safeSize <= 16) {
+        LOGDEBUG("YrScanBuffer: Buffer too small for meaningful scan, skipping");
+        return;
+    }
+
+    // バッファの内容の一部をログに出力（デバッグ用）
+    if (lpBuffer != nullptr) {
+        std::stringstream ss;
+        ss << "Buffer preview: ";
+        for (int i = 0; i < std::min(16, safeSize); i++) {
+            ss << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(lpBuffer[i]) << " ";
+        }
+        LOGTRACE("{}", ss.str());
+    }
+
     try {
-        // 非常に短いタイムアウトと保守的なフラグ設定
-        int timeout = 2; // 2秒タイムアウト
-        int flags = SCAN_FLAGS_REPORT_RULES_MATCHING | SCAN_FLAGS_FAST_MODE;
+        // より長いタイムアウト
+        int timeout = 5; // 2秒→5秒に増加
+        int flags = SCAN_FLAGS_REPORT_RULES_MATCHING;
         
         int result = ScanMemWithSEH(
             this->YrRules, lpBuffer, safeSize, flags, 
             this->YrScanCallback, lpUserData, timeout);
             
         if (result == ERROR_SUCCESS) {
-            LOGTRACE("YrScanBuffer: Safe scan completed successfully");
+            LOGTRACE("YrScanBuffer: Scan completed successfully");
         } else if (result == ERROR_SCAN_TIMEOUT) {
             LOGWARN("YrScanBuffer: Scan timeout after {} seconds", timeout);
         } else {

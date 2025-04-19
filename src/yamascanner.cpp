@@ -37,62 +37,76 @@ YrResult* YamaScanner::ScanProcessMemory(Process* proc) {
     yrResult->result = false;
     yrResult->matchRuleSet = new std::unordered_set<std::string>();
     
-    // フェーズ1.5: notepad.exeの場合は、テスト検出とともに制限付きの実スキャンも実施する
+    // notepadプロセスのチェック
     bool isNotepad = (proc->wcProcessName != nullptr && _wcsicmp(proc->wcProcessName, L"notepad.exe") == 0);
     
-    // テスト検出はそのまま維持（現行の動作を壊さないため）
+    // テスト検出は常に維持（現行の動作を維持）
     if (isNotepad) {
         LOGTRACE("Test match for process: {}", WideCharToUtf8(proc->wcProcessName));
         yrResult->result = true;
         yrResult->matchRuleSet->insert("test_rule_match");
     }
     
-    // 厳選されたプロセスのみ、実際のスキャンを実施
-    bool safeToScan = isNotepad; // 初期フェーズではnotepad.exeのみをスキャン対象とする
-    if (!safeToScan) {
+    if (!isNotepad) {
         LOGTRACE("Process check completed: {}", WideCharToUtf8(proc->wcProcessName));
         return yrResult;
     }
     
-    // この先は、安全なプロセスに対する実際のスキャンを実施する
+    // この先はnotepadプロセスのみ実行
     try {
-        LOGTRACE("Phase 1.5: Safe scan for process: {}", WideCharToUtf8(proc->wcProcessName));
+        LOGTRACE("Phase 1.5: Scanning notepad process memory regions");
         
-        // 極めて制限的なスキャン - 最小限のメモリ領域のみをスキャン
-        int scannedRegionsCount = 0;
-        const int MAX_REGIONS_TO_SCAN = 1;  // フェーズ1.5では単一領域のみ
+        // 条件緩和 - メモリ領域のカウント
+        int totalRegions = 0;
+        int committedRegions = 0;
+        int suitableRegions = 0;
+        int scannedRegions = 0;
+        
+        // notepadプロセスのメモリ情報を出力
+        LOGTRACE("Process has {} memory base entries", proc->MemoryBaseEntries.size());
         
         std::map<uint64_t, MemoryBaseRegion*>::iterator iterBase = proc->MemoryBaseEntries.begin();
-        while (iterBase != proc->MemoryBaseEntries.end() && scannedRegionsCount < MAX_REGIONS_TO_SCAN) {
+        while (iterBase != proc->MemoryBaseEntries.end()) {
             MemoryBaseRegion* baseRegion = iterBase->second;
             
+            LOGTRACE("Base region at {:#x} has {} sub-regions", baseRegion->BaseAddress, baseRegion->SubRegions.size());
+            
             std::map<uint64_t, MemoryRegion*>::iterator iterSub = baseRegion->SubRegions.begin();
-            while (iterSub != baseRegion->SubRegions.end() && scannedRegionsCount < MAX_REGIONS_TO_SCAN) {
+            while (iterSub != baseRegion->SubRegions.end()) {
                 MemoryRegion* region = iterSub->second;
+                totalRegions++;
                 
-                // 非常に厳しい条件: 小さな読み取り専用領域のみをスキャン
-                if (strcmp(region->MemState, "MEM_COMMIT") == 0 && 
-                    strcmp(region->MemType, "MEM_PRIVATE") == 0 &&
-                    strstr(region->MemProtect, "R") != nullptr && 
-                    strstr(region->MemProtect, "X") == nullptr) { // 実行権限のない領域のみ
+                // どのようなメモリ領域が存在するか記録
+                if (strcmp(region->MemState, "MEM_COMMIT") == 0) {
+                    committedRegions++;
                     
-                    // 超小型サイズのみ (1KB以下)
-                    if (region->RegionSize > 0 && region->RegionSize <= 1024) {
+                    // 条件を大幅に緩和: より多くの領域をスキャン
+                    // サイズ上限を増加（64KB以下）
+                    if (region->RegionSize > 0 && region->RegionSize <= 65536) {
+                        suitableRegions++;
+                        
+                        // より詳細な情報をログに出力
+                        LOGTRACE("Suitable memory region at {:#x}, size: {}, type: {}, protect: {}", 
+                                region->StartVa, region->RegionSize, region->MemType, region->MemProtect);
+                        
                         try {
-                            LOGTRACE("Attempting to scan tiny memory region at {:#x}, size: {}, type: {}, protect: {}", 
-                                    region->StartVa, region->RegionSize, region->MemType, region->MemProtect);
-                            
-                            // 安全なメモリ割り当て
+                            // バッファ確保
                             std::unique_ptr<unsigned char[]> buffer(new unsigned char[region->RegionSize]());
                             
                             // メモリダンプ試行
                             if (region->DumpRegion(buffer.get(), region->RegionSize, nullptr)) {
-                                // YARAスキャン実行 - エラーハンドリング強化
+                                // YARAスキャン実行
                                 this->yrManager->YrScanBuffer(buffer.get(), region->RegionSize, yrResult);
-                                scannedRegionsCount++;
+                                scannedRegions++;
                                 
                                 LOGTRACE("Successfully scanned memory region #{} at {:#x}, size: {}", 
-                                        scannedRegionsCount, region->StartVa, region->RegionSize);
+                                        scannedRegions, region->StartVa, region->RegionSize);
+                                
+                                // 最大10領域までスキャン
+                                if (scannedRegions >= 10) {
+                                    LOGTRACE("Reached maximum scan regions limit (10)");
+                                    break;
+                                }
                             }
                             else {
                                 LOGDEBUG("Failed to dump memory region at {:#x} - skipping", region->StartVa);
@@ -108,11 +122,20 @@ YrResult* YamaScanner::ScanProcessMemory(Process* proc) {
                 }
                 iterSub++;
             }
+            
+            // 最大スキャン数に達したらループを抜ける
+            if (scannedRegions >= 10) {
+                break;
+            }
+            
             iterBase++;
         }
         
-        LOGTRACE("Phase 1.5: Completed scanning {} tiny memory regions for process {}", 
-                scannedRegionsCount, WideCharToUtf8(proc->wcProcessName));
+        LOGTRACE("Memory region statistics - Total: {}, Committed: {}, Suitable: {}, Scanned: {}", 
+                totalRegions, committedRegions, suitableRegions, scannedRegions);
+        
+        LOGTRACE("Phase 1.5: Completed scanning {} memory regions for notepad.exe", 
+                scannedRegions);
     }
     catch (const std::exception& ex) {
         LOGERROR("Exception during process scan: {}", ex.what());
