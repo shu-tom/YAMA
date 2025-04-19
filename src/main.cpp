@@ -27,6 +27,7 @@
 
 const char* version = "1.0";
 
+// エクスポート関数の呼び出し規約を明確に指定
 extern "C" YAMA_API int __stdcall MemoryScan(const char* ruleString, const char** result) {
     // ポインタと入力の検証
     if (result == nullptr) {
