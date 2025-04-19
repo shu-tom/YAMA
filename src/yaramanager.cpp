@@ -3,13 +3,14 @@
 #include <iomanip> // setfill, setwに必要
 #include <sstream> // stringstream用
 #include <mutex> // スレッドセーフなアクセスのため
+#include <algorithm> // std::min用
 
 namespace yama {
 
 // スレッドセーフなアクセスのためのミューテックス
 static std::mutex yaraRulesMutex;
 
-YaraManager::YaraManager() : YrCompiler(nullptr), YrScanner(nullptr), YrRules(nullptr), isInitialized(false) {
+YaraManager::YaraManager() : YrCompiler(nullptr), YrScanner(nullptr), YrRules(nullptr), m_isInitialized(false) {
     // YARA初期化のスレッドセーフな保証
     std::lock_guard<std::mutex> lock(yaraRulesMutex);
     
@@ -30,12 +31,12 @@ YaraManager::YaraManager() : YrCompiler(nullptr), YrScanner(nullptr), YrRules(nu
     }
     
     // 初期化成功フラグ設定
-    isInitialized = true;
+    m_isInitialized = true;
     LOGTRACE("YaraManager successfully initialized");
 }
 
 bool YaraManager::YrCreateScanner() {
-    if (!isInitialized || YrRules == nullptr) {
+    if (!m_isInitialized || YrRules == nullptr) {
         LOGERROR("Cannot create scanner: YaraManager not properly initialized or no rules loaded");
         return false;
     }
@@ -85,7 +86,7 @@ bool YaraManager::IsValidRule(const char* strRule) {
 }
 
 bool YaraManager::YrAddRuleFromString(const char* strRule) {
-    if (!isInitialized) {
+    if (!m_isInitialized) {
         LOGERROR("Cannot add rule: YaraManager not properly initialized");
         return false;
     }
@@ -191,10 +192,10 @@ int YaraManager::YrScanCallback(YR_SCAN_CONTEXT* context, int message, void* mes
     }
 }
 
-// SEHを使用するヘルパー関数を追加
+// SEHを使用するヘルパー関数
 int YaraManager::ScanMemWithSEH(YR_RULES* rules, const unsigned char* buffer, 
-                               int size, int flags, YR_CALLBACK_FUNC callback, 
-                               void* userData, int timeout) {
+                              int size, int flags, YR_CALLBACK_FUNC callback, 
+                              void* userData, int timeout) {
     if (rules == nullptr || buffer == nullptr || size <= 0) {
         LOGERROR("ScanMemWithSEH: Invalid parameter - rules={:#x}, buffer={:#x}, size={}",
                  reinterpret_cast<uint64_t>(rules),
@@ -220,86 +221,84 @@ int YaraManager::ScanMemWithSEH(YR_RULES* rules, const unsigned char* buffer,
     }
 }
 
+// SEH例外処理とC++例外処理を分離
 void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, void* lpUserData) {
-    __try {
-        // バッファとサイズの検証
-        if (lpBuffer == nullptr || dwBufferSize <= 0) {
-            LOGERROR("YrScanBuffer: Invalid buffer parameters. Buffer: {:#x}, Size: {}", 
-                    reinterpret_cast<uint64_t>(lpBuffer), dwBufferSize);
-            return;
-        }
-        
-        // 初期化とYrRulesの検証を強化
-        if (!isInitialized) {
-            LOGERROR("YrScanBuffer: YaraManager not properly initialized");
-            return;
-        }
-        
-        // スレッドセーフな操作のためにミューテックスを使用
-        std::lock_guard<std::mutex> lock(yaraRulesMutex);
-        
-        if (this->YrRules == nullptr) {
-            LOGERROR("YrScanBuffer: YrRules is NULL");
-            return;
-        }
+    // 前処理 - バッファとパラメータの検証
+    if (lpBuffer == nullptr || dwBufferSize <= 0) {
+        LOGERROR("YrScanBuffer: Invalid buffer parameters. Buffer: {:#x}, Size: {}", 
+                reinterpret_cast<uint64_t>(lpBuffer), dwBufferSize);
+        return;
+    }
+    
+    // 初期化とYrRulesの検証
+    if (!m_isInitialized) {
+        LOGERROR("YrScanBuffer: YaraManager not properly initialized");
+        return;
+    }
+    
+    // スレッドセーフな操作のためにミューテックスを使用
+    std::lock_guard<std::mutex> lock(yaraRulesMutex);
+    
+    if (this->YrRules == nullptr) {
+        LOGERROR("YrScanBuffer: YrRules is NULL");
+        return;
+    }
 
-        // フェーズ3: より安全なスキャン制御
-        // バッファサイズを厳格に制限
-        const int MAX_SAFE_BUFFER_SIZE = 8192; // 8KB制限に緩和
-        int safeSize = (dwBufferSize > MAX_SAFE_BUFFER_SIZE) ? MAX_SAFE_BUFFER_SIZE : dwBufferSize;
+    // フェーズ3: より安全なスキャン制御
+    // バッファサイズを厳格に制限
+    const int MAX_SAFE_BUFFER_SIZE = 8192; // 8KB制限に緩和
+    int safeSize = (dwBufferSize > MAX_SAFE_BUFFER_SIZE) ? MAX_SAFE_BUFFER_SIZE : dwBufferSize;
 
-        LOGTRACE("YrScanBuffer: Phase 3 - Enhanced safe scan mode. Va:{:#x} Size:{} (limited from {})", 
-                reinterpret_cast<uint64_t>(lpBuffer), safeSize, dwBufferSize);
+    LOGTRACE("YrScanBuffer: Phase 3 - Enhanced safe scan mode. Va:{:#x} Size:{} (limited from {})", 
+            reinterpret_cast<uint64_t>(lpBuffer), safeSize, dwBufferSize);
 
-        // 空のバッファや小さすぎるバッファは処理しない
-        if (safeSize <= 16) {
-            LOGDEBUG("YrScanBuffer: Buffer too small for meaningful scan, skipping");
-            return;
-        }
+    // 空のバッファや小さすぎるバッファは処理しない
+    if (safeSize <= 16) {
+        LOGDEBUG("YrScanBuffer: Buffer too small for meaningful scan, skipping");
+        return;
+    }
 
-        // メモリ内容の検証 - 予期しない値やNULL領域をチェック
-        bool hasNonZeroContent = false;
-        for (int i = 0; i < std::min(64, safeSize); i++) {
-            if (lpBuffer[i] != 0) {
-                hasNonZeroContent = true;
-                break;
-            }
-        }
-        
-        if (!hasNonZeroContent) {
-            LOGDEBUG("YrScanBuffer: Buffer contains only zeros in first 64 bytes, skipping");
-            return;
-        }
-
-        // スキャン開始（SEH例外処理でラップ済み）
-        try {
-            // 最適化されたスキャン設定
-            int timeout = 3; // タイムアウト値を緩和
-            int flags = SCAN_FLAGS_REPORT_RULES_MATCHING | SCAN_FLAGS_FAST_MODE;
-            
-            LOGTRACE("YrScanBuffer: Starting enhanced scan with timeout {}s", timeout);
-            
-            int result = ScanMemWithSEH(
-                this->YrRules, lpBuffer, safeSize, flags, 
-                this->YrScanCallback, lpUserData, timeout);
-                
-            if (result == ERROR_SUCCESS) {
-                LOGTRACE("YrScanBuffer: Scan completed successfully");
-            } else if (result == ERROR_SCAN_TIMEOUT) {
-                LOGWARN("YrScanBuffer: Scan timeout after {} seconds", timeout);
-            } else {
-                LOGWARN("YrScanBuffer: Scan returned error code: {}", result);
-            }
-        }
-        catch (const std::exception& ex) {
-            LOGERROR("Exception in YrScanBuffer: {}", ex.what());
-        }
-        catch (...) {
-            LOGERROR("Unknown exception in YrScanBuffer");
+    // メモリ内容の検証 - 予期しない値やNULL領域をチェック
+    bool hasNonZeroContent = false;
+    int checkSize = std::min(64, safeSize); // minマクロの競合を回避
+    for (int i = 0; i < checkSize; i++) {
+        if (lpBuffer[i] != 0) {
+            hasNonZeroContent = true;
+            break;
         }
     }
-    __except(EXCEPTION_EXECUTE_HANDLER) {
-        LOGERROR("SEH exception in YrScanBuffer: Exception code: {:#x}", GetExceptionCode());
+    
+    if (!hasNonZeroContent) {
+        LOGDEBUG("YrScanBuffer: Buffer contains only zeros in first 64 bytes, skipping");
+        return;
+    }
+
+    // C++例外処理だけを使用してスキャン
+    try {
+        // 最適化されたスキャン設定
+        int timeout = 3; // タイムアウト値を緩和
+        int flags = SCAN_FLAGS_REPORT_RULES_MATCHING | SCAN_FLAGS_FAST_MODE;
+        
+        LOGTRACE("YrScanBuffer: Starting enhanced scan with timeout {}s", timeout);
+        
+        // SEH処理はScanMemWithSEH内部に閉じ込める（C++例外処理との分離）
+        int result = ScanMemWithSEH(
+            this->YrRules, lpBuffer, safeSize, flags, 
+            this->YrScanCallback, lpUserData, timeout);
+            
+        if (result == ERROR_SUCCESS) {
+            LOGTRACE("YrScanBuffer: Scan completed successfully");
+        } else if (result == ERROR_SCAN_TIMEOUT) {
+            LOGWARN("YrScanBuffer: Scan timeout after {} seconds", timeout);
+        } else {
+            LOGWARN("YrScanBuffer: Scan returned error code: {}", result);
+        }
+    }
+    catch (const std::exception& ex) {
+        LOGERROR("Exception in YrScanBuffer: {}", ex.what());
+    }
+    catch (...) {
+        LOGERROR("Unknown exception in YrScanBuffer");
     }
 }
 
@@ -320,13 +319,13 @@ YaraManager::~YaraManager() {
         this->YrScanner = nullptr;
     }
     
-    if (isInitialized) {
+    if (m_isInitialized) {
         int res = yr_finalize();
         if (res != ERROR_SUCCESS) {
             LOGERROR("Failed to finalize libyara. Error:0x{:x}", res);
         }
         LOGTRACE("Finalized YaraManager");
-        isInitialized = false;
+        m_isInitialized = false;
     }
 }
 

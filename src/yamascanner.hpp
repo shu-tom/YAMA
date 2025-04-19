@@ -18,8 +18,10 @@ class YamaScanner {
     std::vector<SuspiciousProcess*>* suspiciousProcessList = nullptr;
 
     void ScanPidList();
-    // std::vector<SuspiciousProcess*>* GetScanResult();
     void InitYaraManager(const char* lpcYaraRuleString);
+
+    // 明示的にデストラクタを宣言
+    ~YamaScanner();
 
    private:
     std::vector<DWORD /* PID */>* PidList = nullptr;
