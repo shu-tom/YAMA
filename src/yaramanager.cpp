@@ -129,68 +129,85 @@ int YaraManager::ScanMemWithSEH(YR_RULES* rules, const unsigned char* buffer,
 }
 
 void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, void* lpUserData) {
-    // バッファとサイズの検証
-    LOGTRACE("YrScanBuffer first:");
-    if (lpBuffer == nullptr || dwBufferSize <= 0) {
-        LOGTRACE("YrScanBuffer: Invalid buffer parameters. Buffer: {:#x}, Size: {}", 
-                 reinterpret_cast<uint64_t>(lpBuffer), dwBufferSize);
-        return;
-    }
-    LOGTRACE("YrScanBuffer first: Buffer: {:#x}, Size: {}", 
-             reinterpret_cast<uint64_t>(lpBuffer), dwBufferSize);
-
-    if (this->YrRules == nullptr) {
-        LOGTRACE("YrScanBuffer: YrRules is NULL");
-        return;
-    }
-    LOGTRACE("YrScanBuffer second:");
-
-    // バッファサイズ制限を緩和 - フェーズ1.5
-    const int MAX_SAFE_BUFFER_SIZE = 65536; // 64KB制限（1KB→64KBに増加）
-    int safeSize = (dwBufferSize > MAX_SAFE_BUFFER_SIZE) ? MAX_SAFE_BUFFER_SIZE : dwBufferSize;
-
-    LOGTRACE("YrScanBuffer: Safe scan mode. Va:{:#x} Size:{} (limited from {})", 
-             reinterpret_cast<uint64_t>(lpBuffer), safeSize, dwBufferSize);
-
-    // 空のバッファや特殊なケースをチェック（クラッシュ回避）
-    if (safeSize <= 16) {
-        LOGDEBUG("YrScanBuffer: Buffer too small for meaningful scan, skipping");
-        return;
-    }
-
-    // バッファの内容の一部をログに出力（デバッグ用）
-    if (lpBuffer != nullptr) {
-        std::stringstream ss;
-        ss << "Buffer preview: ";
-        // Windowsのminマクロ競合を回避するために括弧で囲む
-        for (int i = 0; i < (std::min)(16, safeSize); i++) {
-            ss << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(lpBuffer[i]) << " ";
+    __try {
+        // バッファとサイズの検証
+        if (lpBuffer == nullptr || dwBufferSize <= 0) {
+            LOGTRACE("YrScanBuffer: Invalid buffer parameters. Buffer: {:#x}, Size: {}", 
+                    reinterpret_cast<uint64_t>(lpBuffer), dwBufferSize);
+            return;
         }
-        LOGTRACE("{}", ss.str());
-    }
-
-    try {
-        // より長いタイムアウト
-        int timeout = 5; // 2秒→5秒に増加
-        int flags = SCAN_FLAGS_REPORT_RULES_MATCHING;
         
-        int result = ScanMemWithSEH(
-            this->YrRules, lpBuffer, safeSize, flags, 
-            this->YrScanCallback, lpUserData, timeout);
-            
-        if (result == ERROR_SUCCESS) {
-            LOGTRACE("YrScanBuffer: Scan completed successfully");
-        } else if (result == ERROR_SCAN_TIMEOUT) {
-            LOGWARN("YrScanBuffer: Scan timeout after {} seconds", timeout);
-        } else {
-            LOGWARN("YrScanBuffer: Scan returned error code: {}", result);
+        // YrRulesの検証を強化
+        if (this == nullptr) {
+            LOGERROR("YrScanBuffer: 'this' pointer is NULL");
+            return;
         }
+        
+        // YrRulesメンバ変数のアドレスと値をログに記録
+        LOGTRACE("YrScanBuffer: this={:#x}, YrRules addr={:#x}", 
+                reinterpret_cast<uint64_t>(this), 
+                reinterpret_cast<uint64_t>(&this->YrRules));
+                
+        // 追加の安全チェック - フェーズ1では実際のYARAスキャンを無効化
+        LOGTRACE("YrScanBuffer: Phase 1 - Skipping actual YARA scan for safety");
+        return;
+        
+        // 以下のコードは将来の実装のためにコメントアウトしておく
+        /*
+        if (this->YrRules == nullptr) {
+            LOGTRACE("YrScanBuffer: YrRules is NULL");
+            return;
+        }
+
+        // バッファサイズ制限
+        const int MAX_SAFE_BUFFER_SIZE = 65536; // 64KB制限
+        int safeSize = (dwBufferSize > MAX_SAFE_BUFFER_SIZE) ? MAX_SAFE_BUFFER_SIZE : dwBufferSize;
+
+        LOGTRACE("YrScanBuffer: Safe scan mode. Va:{:#x} Size:{} (limited from {})", 
+                reinterpret_cast<uint64_t>(lpBuffer), safeSize, dwBufferSize);
+
+        // 空のバッファチェック
+        if (safeSize <= 16) {
+            LOGDEBUG("YrScanBuffer: Buffer too small for meaningful scan, skipping");
+            return;
+        }
+
+        // バッファの内容の一部をログに出力
+        if (lpBuffer != nullptr) {
+            std::stringstream ss;
+            ss << "Buffer preview: ";
+            for (int i = 0; i < (std::min)(16, safeSize); i++) {
+                ss << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(lpBuffer[i]) << " ";
+            }
+            LOGTRACE("{}", ss.str());
+        }
+
+        try {
+            int timeout = 5;
+            int flags = SCAN_FLAGS_REPORT_RULES_MATCHING;
+            
+            int result = ScanMemWithSEH(
+                this->YrRules, lpBuffer, safeSize, flags, 
+                this->YrScanCallback, lpUserData, timeout);
+                
+            if (result == ERROR_SUCCESS) {
+                LOGTRACE("YrScanBuffer: Scan completed successfully");
+            } else if (result == ERROR_SCAN_TIMEOUT) {
+                LOGWARN("YrScanBuffer: Scan timeout after {} seconds", timeout);
+            } else {
+                LOGWARN("YrScanBuffer: Scan returned error code: {}", result);
+            }
+        }
+        catch (const std::exception& ex) {
+            LOGERROR("Exception in YrScanBuffer: {}", ex.what());
+        }
+        catch (...) {
+            LOGERROR("Unknown exception in YrScanBuffer");
+        }
+        */
     }
-    catch (const std::exception& ex) {
-        LOGERROR("Exception in YrScanBuffer: {}", ex.what());
-    }
-    catch (...) {
-        LOGERROR("Unknown exception in YrScanBuffer");
+    __except(EXCEPTION_EXECUTE_HANDLER) {
+        LOGERROR("SEH exception in YrScanBuffer: Exception code: {:#x}", GetExceptionCode());
     }
 }
 
