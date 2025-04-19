@@ -10,7 +10,7 @@ namespace yama {
 // スレッドセーフなアクセスのためのミューテックス
 static std::mutex yaraRulesMutex;
 
-YaraManager::YaraManager() : YrCompiler(nullptr), YrScanner(nullptr), YrRules(nullptr), m_isInitialized(false) {
+YaraManager::YaraManager() : YrCompiler(nullptr), YrScanner(nullptr), YrRules(nullptr), m_initialized(false) {
     // YARA初期化のスレッドセーフな保証
     std::lock_guard<std::mutex> lock(yaraRulesMutex);
     
@@ -31,12 +31,12 @@ YaraManager::YaraManager() : YrCompiler(nullptr), YrScanner(nullptr), YrRules(nu
     }
     
     // 初期化成功フラグ設定
-    m_isInitialized = true;
+    m_initialized = true;
     LOGTRACE("YaraManager successfully initialized");
 }
 
 bool YaraManager::YrCreateScanner() {
-    if (!m_isInitialized || YrRules == nullptr) {
+    if (!m_initialized || YrRules == nullptr) {
         LOGERROR("Cannot create scanner: YaraManager not properly initialized or no rules loaded");
         return false;
     }
@@ -86,7 +86,7 @@ bool YaraManager::IsValidRule(const char* strRule) {
 }
 
 bool YaraManager::YrAddRuleFromString(const char* strRule) {
-    if (!m_isInitialized) {
+    if (!m_initialized) {
         LOGERROR("Cannot add rule: YaraManager not properly initialized");
         return false;
     }
@@ -231,7 +231,7 @@ void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, 
     }
     
     // 初期化とYrRulesの検証
-    if (!m_isInitialized) {
+    if (!m_initialized) {
         LOGERROR("YrScanBuffer: YaraManager not properly initialized");
         return;
     }
@@ -258,9 +258,10 @@ void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, 
         return;
     }
 
-    // メモリ内容の検証 - 予期しない値やNULL領域をチェック
+    // メモリ内容の検証 - minマクロの競合問題を回避
     bool hasNonZeroContent = false;
-    int checkSize = std::min(64, safeSize); // minマクロの競合を回避
+    int checkSize = (64 < safeSize) ? 64 : safeSize;  // std::minの代わりに直接条件式を使用
+    
     for (int i = 0; i < checkSize; i++) {
         if (lpBuffer[i] != 0) {
             hasNonZeroContent = true;
@@ -319,13 +320,13 @@ YaraManager::~YaraManager() {
         this->YrScanner = nullptr;
     }
     
-    if (m_isInitialized) {
+    if (m_initialized) {
         int res = yr_finalize();
         if (res != ERROR_SUCCESS) {
             LOGERROR("Failed to finalize libyara. Error:0x{:x}", res);
         }
         LOGTRACE("Finalized YaraManager");
-        m_isInitialized = false;
+        m_initialized = false;
     }
 }
 
