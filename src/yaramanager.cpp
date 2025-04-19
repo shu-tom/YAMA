@@ -132,13 +132,15 @@ void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, 
     // バッファとサイズの検証
     LOGTRACE("YrScanBuffer first:");
     if (lpBuffer == nullptr || dwBufferSize <= 0) {
-        LOGERROR("YrScanBuffer: Invalid buffer parameters. Buffer: {:#x}, Size: {}", 
+        LOGTRACE("YrScanBuffer: Invalid buffer parameters. Buffer: {:#x}, Size: {}", 
                  reinterpret_cast<uint64_t>(lpBuffer), dwBufferSize);
         return;
     }
+    LOGTRACE("YrScanBuffer first: Buffer: {:#x}, Size: {}", 
+             reinterpret_cast<uint64_t>(lpBuffer), dwBufferSize);
 
     if (this->YrRules == nullptr) {
-        LOGERROR("YrScanBuffer: YrRules is NULL");
+        LOGTRACE("YrScanBuffer: YrRules is NULL");
         return;
     }
     LOGTRACE("YrScanBuffer second:");
