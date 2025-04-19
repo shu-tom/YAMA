@@ -130,6 +130,7 @@ int YaraManager::ScanMemWithSEH(YR_RULES* rules, const unsigned char* buffer,
 
 void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, void* lpUserData) {
     // バッファとサイズの検証
+    LOGTRACE("YrScanBuffer first:");
     if (lpBuffer == nullptr || dwBufferSize <= 0) {
         LOGERROR("YrScanBuffer: Invalid buffer parameters. Buffer: {:#x}, Size: {}", 
                  reinterpret_cast<uint64_t>(lpBuffer), dwBufferSize);
@@ -140,6 +141,7 @@ void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, 
         LOGERROR("YrScanBuffer: YrRules is NULL");
         return;
     }
+    LOGTRACE("YrScanBuffer second:");
 
     // バッファサイズ制限を緩和 - フェーズ1.5
     const int MAX_SAFE_BUFFER_SIZE = 65536; // 64KB制限（1KB→64KBに増加）
