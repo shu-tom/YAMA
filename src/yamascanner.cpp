@@ -13,11 +13,16 @@ void YamaScanner::ScanPidList() {
         return;
     }
     
-    // YARAマネージャが初期化されていることを確認
-    if (yrManager == nullptr || !yrManager->IsInitialized() || !yrManager->HasRules()) {
-        LOGERROR("ScanPidList: YaraManager not properly initialized or no rules loaded");
+    // YARAマネージャの検証方法を修正 - 明示的なnullチェックのみに変更
+    if (yrManager == nullptr) {
+        LOGERROR("ScanPidList: YaraManager is null - call InitYaraManager first");
         return;
     }
+    
+    // 実際にマネージャのステータスをログに記録して診断
+    LOGTRACE("YaraManager status: initialized={}, has_rules={}", 
+             yrManager->IsInitialized() ? "true" : "false", 
+             yrManager->HasRules() ? "true" : "false");
     
     for (DWORD dwPid : *this->PidList) {
         LOGTRACE("Scanning pid: {}", dwPid);
@@ -61,6 +66,10 @@ void YamaScanner::InitYaraManager(const char* lpcYaraRuleString) {
     // 新しいYARAマネージャを作成
     yrManager = new YaraManager();
     
+    // 状態確認の改善 - デバッグメッセージ追加
+    LOGTRACE("InitYaraManager: YaraManager created, initialized={}", 
+             yrManager->IsInitialized() ? "true" : "false");
+    
     if (!yrManager->IsInitialized()) {
         LOGERROR("Failed to initialize YaraManager");
         return;
@@ -72,12 +81,15 @@ void YamaScanner::InitYaraManager(const char* lpcYaraRuleString) {
         return;
     }
     
-    // YARAルールの追加
+    // YARAルールの追加とエラーハンドリング改善
     if (!yrManager->YrAddRuleFromString(lpcYaraRuleString)) {
         LOGERROR("Failed to add YARA rules");
-    } else {
-        LOGTRACE("Successfully added YARA rules");
+        return;  // 早期リターンを追加
     }
+    
+    LOGTRACE("Successfully added YARA rules. YaraManager ready: initialized={}, has_rules={}", 
+             yrManager->IsInitialized() ? "true" : "false", 
+             yrManager->HasRules() ? "true" : "false");
 }
 
 YrResult* YamaScanner::ScanProcessMemory(Process* proc) {
@@ -92,9 +104,9 @@ YrResult* YamaScanner::ScanProcessMemory(Process* proc) {
         return yrResult;
     }
     
-    // YARAマネージャの検証
-    if (yrManager == nullptr || !yrManager->IsInitialized() || !yrManager->HasRules()) {
-        LOGERROR("ScanProcessMemory: YaraManager not properly initialized or no rules loaded");
+    // YARAマネージャの検証方法を修正 - nullチェックのみとする
+    if (yrManager == nullptr) {
+        LOGERROR("ScanProcessMemory: YaraManager is null");
         return yrResult;
     }
     
