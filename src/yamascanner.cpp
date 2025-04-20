@@ -169,7 +169,7 @@ YrResult* YamaScanner::ScanProcessMemory(Process* proc) {
         int suitableRegions = 0;
         int scannedRegions = 0;
         
-        const int MAX_REGIONS_TO_SCAN = 20;
+        const int MAX_REGIONS_TO_SCAN = 100;
         const int MAX_REGION_SIZE = 0x30000000;
         
         LOGTRACE("Process has {} memory base entries", proc->MemoryBaseEntries.size());

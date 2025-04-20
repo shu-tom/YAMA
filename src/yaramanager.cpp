@@ -260,7 +260,7 @@ void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, 
 
     // メモリ内容の検証 - minマクロの競合問題を回避
     bool hasNonZeroContent = false;
-    int checkSize = (64 < safeSize) ? 64 : safeSize;  // std::minの代わりに直接条件式を使用
+    int checkSize = (512 < safeSize) ? 512 : safeSize;  // std::minの代わりに直接条件式を使用
     
     for (int i = 0; i < checkSize; i++) {
         if (lpBuffer[i] != 0) {
@@ -270,14 +270,14 @@ void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, 
     }
     
     if (!hasNonZeroContent) {
-        LOGDEBUG("YrScanBuffer: Buffer contains only zeros in first 64 bytes, skipping");
+        LOGDEBUG("YrScanBuffer: Buffer contains only zeros in first 512 bytes, skipping");
         return;
     }
 
     // C++例外処理だけを使用してスキャン
     try {
         // 最適化されたスキャン設定
-        int timeout = 3; // タイムアウト値を緩和
+        int timeout = 20; // タイムアウト値を緩和
         int flags = SCAN_FLAGS_REPORT_RULES_MATCHING | SCAN_FLAGS_FAST_MODE;
         
         LOGTRACE("YrScanBuffer: Starting enhanced scan with timeout {}s", timeout);
