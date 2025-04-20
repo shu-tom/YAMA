@@ -246,8 +246,9 @@ void YaraManager::YrScanBuffer(const unsigned char* lpBuffer, int dwBufferSize, 
 
     // フェーズ3: より安全なスキャン制御
     // バッファサイズを厳格に制限
-    const int MAX_SAFE_BUFFER_SIZE = 8192; // 8KB制限に緩和
-    int safeSize = (dwBufferSize > MAX_SAFE_BUFFER_SIZE) ? MAX_SAFE_BUFFER_SIZE : dwBufferSize;
+    // const int MAX_SAFE_BUFFER_SIZE = 8192; // 8KB制限に緩和
+    // int safeSize = (dwBufferSize > MAX_SAFE_BUFFER_SIZE) ? MAX_SAFE_BUFFER_SIZE : dwBufferSize;
+    int safeSize = dwBufferSize; // サイズ制限を解除
 
     LOGTRACE("YrScanBuffer: Phase 3 - Enhanced safe scan mode. Va:{:#x} Size:{} (limited from {})", 
             reinterpret_cast<uint64_t>(lpBuffer), safeSize, dwBufferSize);

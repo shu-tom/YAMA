@@ -144,7 +144,7 @@ YrResult* YamaScanner::ScanProcessMemory(Process* proc) {
         return yrResult;
     }
     
-    bool isNotepad = (_wcsicmp(proc->wcProcessName, L"notepad.exe") == 0);
+    /*bool isNotepad = (_wcsicmp(proc->wcProcessName, L"notepad.exe") == 0);
     
     if (isNotepad) {
         LOGTRACE("Test match for process: {}", WideCharToUtf8(proc->wcProcessName));
@@ -152,7 +152,7 @@ YrResult* YamaScanner::ScanProcessMemory(Process* proc) {
         yrResult->matchRuleSet->insert("test_rule_match");
     }
     
-    /*bool shouldScanMemory = isNotepad || 
+    bool shouldScanMemory = isNotepad || 
                            _wcsicmp(proc->wcProcessName, L"explorer.exe") == 0 ||
                            _wcsicmp(proc->wcProcessName, L"calc.exe") == 0;
     
