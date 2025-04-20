@@ -77,23 +77,50 @@ extern "C" YAMA_API int __stdcall MemoryScan(const char* ruleString, const char*
         std::vector<DWORD> vPids = yama::ListPid();
         LOGINFO("Yama will scan {} process(es).", vPids.size());
 
+        // スキャナーオブジェクトの作成をログ
+        LOGTRACE("Creating YamaScanner...");
         auto scanner = std::make_unique<yama::YamaScanner>(&vPids);
+        LOGTRACE("YamaScanner created successfully");
         
-        // ルールの追加
-        yama::YaraManager manager;
-        if (!manager.YrAddRuleFromString(ruleString)) {
-            LOGERROR("Failed to add rule from string.");
+        // YARAルールをログに出力
+        if (ruleString != nullptr) {
+            size_t ruleLen = strlen(ruleString);
+            LOGTRACE("YARA rule string length: {} bytes", ruleLen);
+            if (ruleLen > 0) {
+                // 最初の50文字だけログに出力
+                const size_t previewLength = 50;
+                size_t logLength = (ruleLen < previewLength) ? ruleLen : previewLength;
+                std::string preview(ruleString, logLength);
+                LOGTRACE("YARA rule preview: {}...", preview);
+            }
+        } else {
+            LOGERROR("YARA rule string is NULL");
+        }
+        
+        // YARAマネージャの初期化をより詳細にログ
+        LOGTRACE("Initializing YaraManager with rules...");
+        scanner->InitYaraManager(ruleString);
+        
+        // YARAマネージャの初期化状態を確認
+        if (scanner->IsManagerInitialized()) {
+            LOGTRACE("YaraManager initialized successfully");
+        } else {
+            LOGERROR("YaraManager initialization failed");
             char* pszReturn = (char*)::CoTaskMemAlloc(256);
             if (pszReturn) {
-                strcpy_s(pszReturn, 256, "Error: Failed to add YARA rule");
+                strcpy_s(pszReturn, 256, "Error: YaraManager initialization failed");
                 *result = pszReturn;
             }
             return 0;
         }
-
+        
+        // プロセススキャン前の状態確認
+        LOGTRACE("Starting process list scan...");
+        
         // プロセススキャン - 例外をキャッチ
         try {
             scanner->ScanPidList();
+            LOGTRACE("Process list scan completed");
         }
         catch (const std::exception& ex) {
             LOGERROR("Exception during scanning: {}", ex.what());

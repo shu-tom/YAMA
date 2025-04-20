@@ -19,6 +19,9 @@ class YamaScanner {
 
     void ScanPidList();
     void InitYaraManager(const char* lpcYaraRuleString);
+    
+    // YARAマネージャの初期化状態をチェックするヘルパーメソッド
+    bool IsManagerInitialized() const;
 
     // 明示的にデストラクタを宣言
     ~YamaScanner();
