@@ -54,7 +54,7 @@ extern "C" YAMA_API int __stdcall MemoryScan(const char* ruleString, const char*
         bool isJson = false;
 
         spdlog::set_pattern("%^%-9l%$: %v");
-        spdlog::set_level(spdlog::level::trace);
+        spdlog::set_level(spdlog::level::debug);
 
         wchar_t lpwcAbsPath[MAX_PATH] = {0};
         DWORD dwResult = GetFullPathNameW(yama::StdStringToWideChar(strOutputPath), MAX_PATH, lpwcAbsPath, NULL);
