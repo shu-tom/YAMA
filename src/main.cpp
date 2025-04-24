@@ -54,7 +54,7 @@ extern "C" YAMA_API int __stdcall MemoryScan(const char* ruleString, const char*
         bool isJson = false;
 
         spdlog::set_pattern("%^%-9l%$: %v");
-        spdlog::set_level(spdlog::level::debug);
+        spdlog::set_level(spdlog::level::error);
 
         wchar_t lpwcAbsPath[MAX_PATH] = {0};
         DWORD dwResult = GetFullPathNameW(yama::StdStringToWideChar(strOutputPath), MAX_PATH, lpwcAbsPath, NULL);
@@ -76,6 +76,12 @@ extern "C" YAMA_API int __stdcall MemoryScan(const char* ruleString, const char*
 
         std::vector<DWORD> vPids = yama::ListPid();
         LOGINFO("Yama will scan {} process(es).", vPids.size());
+
+        // 自分自身のプロセスをスキャン対象から除外
+        DWORD currentPid = GetCurrentProcessId();
+        LOGTRACE("Current process ID: {}", currentPid);
+        vPids.erase(std::remove(vPids.begin(), vPids.end(), currentPid), vPids.end());
+        LOGINFO("Yama will scan {} process(es) after excluding self.", vPids.size());
 
         // スキャナーオブジェクトの作成をログ
         LOGTRACE("Creating YamaScanner...");
