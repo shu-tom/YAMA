@@ -111,7 +111,7 @@ extern "C" YAMA_API int __stdcall MemoryScan(const char* ruleString, const char*
                 strcpy_s(pszReturn, 256, "Error: YaraManager initialization failed");
                 *result = pszReturn;
             }
-            return 0;
+            return -4;
         }
         
         // プロセススキャン前の状態確認
@@ -129,7 +129,7 @@ extern "C" YAMA_API int __stdcall MemoryScan(const char* ruleString, const char*
                 sprintf_s(pszReturn, 256, "Error during scanning: %s", ex.what());
                 *result = pszReturn;
             }
-            return 0;
+            return -5;
         }
 
         LOGINFO("Suspicious Processes Count: {}", scanner->suspiciousProcessList->size());
@@ -175,7 +175,7 @@ extern "C" YAMA_API int __stdcall MemoryScan(const char* ruleString, const char*
             EventUnregisterYAMA();
         }
 
-        return 1;
+        return scanner->suspiciousProcessList->size();
     }
     catch (const std::exception& ex) {
         LOGERROR("Exception caught: {}", ex.what());
